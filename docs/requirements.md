@@ -11,7 +11,7 @@
 
 This document specifies the testable Functional Requirements (FR) and Non-Functional Requirements (NFR) for **Version 1** of the Defect Management System.
 
-In alignment with course software engineering standards, requirements are written using the **Actor–Behavior–Constraint (ABC)** structure to ensure unambiguous testability. Every requirement maps directly to capabilities defined in [`docs/version-scope.md`](file:///C:/Users/soman/ai-defect-triage/docs/version-scope.md), authorization policies in [`docs/roles-permissions.md`](file:///C:/Users/soman/ai-defect-triage/docs/roles-permissions.md), and state transitions in [`docs/defect-workflow.md`](file:///C:/Users/soman/ai-defect-triage/docs/defect-workflow.md).
+In alignment with course software engineering standards, requirements are written using the **Actor–Behavior–Constraint (ABC)** structure to ensure unambiguous testability. Every requirement maps directly to capabilities defined in [version-scope.md](version-scope.md), authorization policies in [roles-permissions.md](roles-permissions.md), and state transitions in [defect-workflow.md](defect-workflow.md).
 
 Version 1 is **strictly deterministic and AI-free**.
 
@@ -160,12 +160,12 @@ Version 1 is **strictly deterministic and AI-free**.
 
 | Capability Name | Requirements Covered | Governing Workflow / RBAC Ref | Planned Test Suite |
 | :--- | :--- | :--- | :--- |
-| Defect Ingestion & Update | `FR-001` – `FR-010` | `docs/roles-permissions.md` §3 | `TC-DEF-001` – `TC-DEF-015` |
-| Evidence Quality Validation | `FR-011` – `FR-016` | `docs/defect-workflow.md` §4 | `TC-EVID-001` – `TC-EVID-010` |
-| Defect Lifecycle Workflow | `FR-021` – `FR-030` | `docs/defect-workflow.md` §3, §5 | `TC-WF-001` – `TC-WF-020` |
-| Role-Based Access Control | `FR-031` – `FR-037` | `docs/roles-permissions.md` §4, §5 | `TC-AUTH-001` – `TC-AUTH-015` |
-| Search & Filtering | `FR-041` – `FR-044` | `docs/version-scope.md` §2 | `TC-SRCH-001` – `TC-SRCH-008` |
-| Audit History & Traceability | `FR-049` – `FR-052` | `docs/defect-workflow.md` §8 | `TC-HIST-001` – `TC-HIST-008` |
-| Concurrency & Optimistic Lock | `FR-056` – `FR-060` | `docs/defect-workflow.md` §8 | `TC-CONC-001` – `TC-CONC-006` |
-| Security & Data Integrity | `NFR-001` – `NFR-006` | System-wide policy | `TC-SEC-001` – `TC-SEC-006` |
-| Performance & Testability | `NFR-007` – `NFR-012` | Quality gates | `TC-SYS-001` – `TC-SYS-010` |
+| Defect Ingestion & Update | `FR-001` – `FR-010` | [roles-permissions.md](roles-permissions.md) §3 | `TC-DEF-001` – `TC-DEF-010` |
+| Evidence Quality Validation | `FR-011` – `FR-016` | [defect-workflow.md](defect-workflow.md) §4 | `TC-EVID-001` – `TC-EVID-007` |
+| Defect Lifecycle Workflow | `FR-021` – `FR-030` | [defect-workflow.md](defect-workflow.md) §3, §5 | `TC-WF-001` – `TC-WF-012` |
+| Role-Based Access Control | `FR-031` – `FR-037` | [roles-permissions.md](roles-permissions.md) §4, §5 | `TC-AUTH-001` – `TC-AUTH-010` |
+| Search & Filtering | `FR-041` – `FR-044` | [version-scope.md](version-scope.md) §2 | `TC-SRCH-001` – `TC-SRCH-006` |
+| Audit History & Traceability | `FR-049` – `FR-052` | [defect-workflow.md](defect-workflow.md) §8 | `TC-HIST-001` – `TC-HIST-005` |
+| Concurrency & Optimistic Lock | `FR-056` – `FR-060` | [defect-workflow.md](defect-workflow.md) §8 | `TC-CONC-001` – `TC-CONC-004` |
+| Security & Data Integrity | `NFR-001` – `NFR-006` | System-wide policy | `TC-SEC-001` – `TC-SEC-003` |
+| Performance & Testability | `NFR-007` – `NFR-012` | Quality gates | `TC-SYS-001` – `TC-SYS-004` |

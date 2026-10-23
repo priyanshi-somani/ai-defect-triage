@@ -23,7 +23,7 @@ The following items are under formal version control:
 2. **Database Migrations:** Version-controlled Alembic migration scripts.
 3. **Automated Test Suites:** Unit, integration, system, and regression test scripts under `tests/`.
 4. **Documentation:** Engineering specifications, requirements, workflows, RBAC matrix, test plans, risk registers, and system test execution evidence under `docs/`.
-5. **Project Configuration:** Dependency manifests (`pyproject.toml` / `requirements.txt`), linting configs, and GitHub workflows.
+5. **Project Configuration:** Dependency manifests (`requirements.txt`), linting configs, and GitHub workflows.
 
 ---
 
@@ -35,25 +35,25 @@ The repository enforces a strict **Feature-Branch Workflow** anchored on `main`.
 gitGraph
     commit id: "chore: init"
     commit id: "docs: scope"
-    branch feature/1-project-skeleton
-    checkout feature/1-project-skeleton
+    branch feature/skeleton
+    checkout feature/skeleton
     commit id: "feat: skeleton"
     commit id: "test: skeleton"
     checkout main
-    merge feature/1-project-skeleton id: "PR #7: Skeleton"
-    branch feature/2-auth-and-rbac
-    checkout feature/2-auth-and-rbac
+    merge feature/skeleton id: "Merge: Project Skeleton"
+    branch feature/auth
+    checkout feature/auth
     commit id: "feat: auth"
     commit id: "test: auth"
     checkout main
-    merge feature/2-auth-and-rbac id: "PR #8: Auth"
+    merge feature/auth id: "Merge: Authentication"
 ```
 
 ### Branch Naming Conventions:
-- **Features:** `feature/<issue-number>-<short-slug>` (e.g., `feature/4-defect-creation`)
-- **Bug Fixes:** `fix/<issue-number>-<short-slug>` (e.g., `fix/25-invalid-transition`)
-- **Testing:** `test/<issue-number>-<short-slug>` (e.g., `test/12-v1-system-testing`)
-- **Documentation:** `docs/<topic-slug>` (e.g., `docs/github-issues-and-scm`)
+- **Features:** `feature/<actual-issue-number>-<short-slug>` (e.g., `feature/10-auth-and-rbac`, `feature/12-defect-creation`)
+- **Bug Fixes:** `fix/<actual-issue-number>-<short-slug>` (e.g., `fix/25-invalid-transition`)
+- **Testing:** `test/<actual-issue-number>-<short-slug>` (e.g., `test/20-v1-system-testing`)
+- **Documentation:** `docs/<topic-slug>` (e.g., `docs/traceability-cleanup`)
 
 ---
 

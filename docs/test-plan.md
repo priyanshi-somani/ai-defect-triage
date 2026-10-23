@@ -27,7 +27,7 @@ The verification strategy employs four testing levels:
 | :--- | :--- | :--- | :--- |
 | **Unit Testing** | Individual functions, validation rules, state transition table lookups, password hashing. | `pytest` / test runner; mock DB/storage if applicable. | 100% pass; statement coverage $\ge 85\%$ across service and validation modules. |
 | **Integration Testing** | API endpoints, DB transaction atomicity, RBAC middleware, optimistic concurrency checks, audit table deltas. | Test client calling REST endpoints against isolated test database. | 100% pass; 0 unhandled 500 exceptions; schema foreign keys verified. |
-| **System Testing** | Full end-to-end multi-user workflows simulating real defect lifecycles (Reporter &rarr; QA &rarr; Dev &rarr; QA). | Automated end-to-end scenario test scripts. | All 10 V1 System Test Areas passed and recorded in `v1-system-test-results.md`. |
+| **System Testing** | Full end-to-end multi-user workflows simulating real defect lifecycles (Reporter &rarr; QA &rarr; Dev &rarr; QA). | Automated end-to-end scenario test scripts. | All planned Version 1 system test areas passed and recorded in `v1-system-test-results.md`. |
 | **Regression Testing** | Automated rerun of entire unit, integration, and system test suites upon any code mutation or PR. | GitHub Actions CI or local automated test runner. | Zero regression failures allowed before merge to `main`. |
 
 ---
@@ -49,7 +49,7 @@ This matrix maps Capabilities, Requirements, Risks, and Test Cases:
 
 ---
 
-## 4. Master Test Case Catalog
+## 4. Master Test Case Catalog (61 Planned Version 1 Test Cases)
 
 ### 4.1 Defect Ingestion & Updating (`TC-DEF`)
 
@@ -174,6 +174,6 @@ This matrix maps Capabilities, Requirements, Risks, and Test Cases:
    The system tests specified above will be compiled into an automated test runner command (e.g., `pytest tests/system/`).
 2. **Recording Results:**  
    All test execution outcomes will be formally documented in:  
-   [`docs/testing/v1-system-test-results.md`](file:///C:/Users/soman/ai-defect-triage/docs/testing/v1-system-test-results.md)
+   [testing/v1-system-test-results.md](testing/v1-system-test-results.md)
 3. **Completion Gate:**  
    Every test case (`TC-DEF`, `TC-EVID`, `TC-WF`, `TC-AUTH`, `TC-SRCH`, `TC-HIST`, `TC-CONC`, `TC-SEC`, `TC-SYS`) must record a status of **PASSED** before the repository is tagged **`v1.0.0`**.
