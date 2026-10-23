@@ -2,7 +2,7 @@
 
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
-**Author / Engineering Lead:** Priyanshi Somani (`psomani@my.harrisburgu.edu`)  
+**Author / Engineering Lead:** Priyanshi Somani  
 
 ---
 

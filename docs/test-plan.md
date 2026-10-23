@@ -49,7 +49,7 @@ This matrix maps Capabilities, Requirements, Risks, and Test Cases:
 
 ---
 
-## 4. Master Test Case Catalog
+## 4. Master Test Case Catalog (61 Planned Version 1 Test Cases)
 
 ### 4.1 Defect Ingestion & Updating (`TC-DEF`)
 
@@ -174,6 +174,6 @@ This matrix maps Capabilities, Requirements, Risks, and Test Cases:
    The system tests specified above will be compiled into an automated test runner command (e.g., `pytest tests/system/`).
 2. **Recording Results:**  
    All test execution outcomes will be formally documented in:  
-   [`docs/testing/v1-system-test-results.md`](file:///C:/Users/soman/ai-defect-triage/docs/testing/v1-system-test-results.md)
+   [testing/v1-system-test-results.md](testing/v1-system-test-results.md)
 3. **Completion Gate:**  
    Every test case (`TC-DEF`, `TC-EVID`, `TC-WF`, `TC-AUTH`, `TC-SRCH`, `TC-HIST`, `TC-CONC`, `TC-SEC`, `TC-SYS`) must record a status of **PASSED** before the repository is tagged **`v1.0.0`**.

@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/architecture.md`  
-**Version:** 1.0 (Version 1 Baseline with V2 Integration Interfaces)  
+**Version:** 1.0 (Version 1 Baseline)  
 
 ---
 
@@ -16,7 +16,7 @@ In alignment with course engineering instructions (§25, §29), the architecture
 2. **Layered Separation of Concerns:** Strict decoupling between presentation, authorization, business logic, and data persistence.
 3. **Deterministic Core:** Version 1 workflows have 0% dependency on external network services, heuristic models, or AI APIs.
 4. **Testability by Design:** All services, validation rules, state transitions, and concurrency locks can be instantiated and verified in isolated unit and integration test harnesses using `pytest`.
-5. **V2 Decoupling (Open-Closed Principle):** Future AI services are abstracted behind strict interfaces (`AITriageService`), ensuring that Version 2 additions do not mutate or compromise Version 1 baselines.
+5. **V2 Decoupling (Open-Closed Principle):** Future AI services will be introduced through a separately designed integration layer, ensuring that Version 2 additions do not mutate or compromise Version 1 baselines.
 
 ---
 
@@ -38,7 +38,7 @@ In alignment with course engineering instructions (§25, §29), the architecture
 
 ## 3. High-Level Component Architecture
 
-The diagram below illustrates the layered architecture and component interaction:
+The diagram below illustrates the layered architecture and component interaction for Version 1:
 
 ```mermaid
 graph TD
@@ -57,7 +57,6 @@ graph TD
         EvidenceService["Evidence Quality Validator"]
         WorkflowService["Finite-State Machine Workflow Engine"]
         HistoryService["Audit History & Traceability Service"]
-        AIAssistant["AITriageService Interface (V2 Stubs / Mocks)"]
     end
 
     subgraph Persistence Layer
@@ -229,24 +228,10 @@ def triage_defect(
 
 ---
 
-## 8. Version 2 AI Service Decoupling & Guardrails
+## 8. Version 2 Extensibility & AI Integration Boundary
 
-To preserve architectural integrity and prevent AI dependencies from leaking into Version 1:
+Version 2 will introduce AI-assisted capabilities through a separately designed integration/service layer so that the deterministic Version 1 core remains independent from external AI services. Detailed AI service contracts, provider integration, privacy controls, duplicate-detection architecture, and failure-handling mechanisms will be finalized after the Version 1 `v1.0.0` baseline is completed.
 
-1. **Interface Abstraction:**
-   ```python
-   class AITriageService(ABC):
-       @abstractmethod
-       def detect_duplicates(self, defect: Defect, top_k: int = 5) -> List[DuplicateCandidate]:
-           pass
-
-       @abstractmethod
-       def recommend_triage(self, defect: Defect) -> TriageRecommendation:
-           pass
-   ```
-2. **Mocking & Isolation in Tests:**
-   In Version 1 (and Version 2 test suites), `MockAITriageService` returns deterministic fixture data, guaranteeing test repeatability without external network calls.
-3. **Privacy Sanitizer Gateway:**
-   In Version 2, all payloads to external LLMs pass through a `PrivacySanitizer` module that redacts API tokens, passwords, email addresses, and proprietary internal IP addresses prior to transmission.
-4. **Circuit Breaker / Fail-Open:**
-   If the AI service fails or times out, the application logs a warning and falls back immediately to normal manual triage without raising an unhandled exception.
+During Version 1:
+- Zero AI service interfaces, prompt templates, or mock AI modules are included in the active codebase.
+- The system operates 100% deterministically with zero external heuristic or cloud model dependencies.
