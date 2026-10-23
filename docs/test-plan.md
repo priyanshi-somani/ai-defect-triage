@@ -27,7 +27,7 @@ The verification strategy employs four testing levels:
 | :--- | :--- | :--- | :--- |
 | **Unit Testing** | Individual functions, validation rules, state transition table lookups, password hashing. | `pytest` / test runner; mock DB/storage if applicable. | 100% pass; statement coverage $\ge 85\%$ across service and validation modules. |
 | **Integration Testing** | API endpoints, DB transaction atomicity, RBAC middleware, optimistic concurrency checks, audit table deltas. | Test client calling REST endpoints against isolated test database. | 100% pass; 0 unhandled 500 exceptions; schema foreign keys verified. |
-| **System Testing** | Full end-to-end multi-user workflows simulating real defect lifecycles (Reporter &rarr; QA &rarr; Dev &rarr; QA). | Automated end-to-end scenario test scripts. | All 10 V1 System Test Areas passed and recorded in `v1-system-test-results.md`. |
+| **System Testing** | Full end-to-end multi-user workflows simulating real defect lifecycles (Reporter &rarr; QA &rarr; Dev &rarr; QA). | Automated end-to-end scenario test scripts. | All planned Version 1 system test areas passed and recorded in `v1-system-test-results.md`. |
 | **Regression Testing** | Automated rerun of entire unit, integration, and system test suites upon any code mutation or PR. | GitHub Actions CI or local automated test runner. | Zero regression failures allowed before merge to `main`. |
 
 ---
