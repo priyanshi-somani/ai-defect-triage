@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.auth_deps import get_current_user
 from backend.models.user import User
-from backend.schemas.defect import DefectCreate, DefectResponse
+from backend.schemas.defect import DefectCreate, DefectUpdate, DefectResponse
 from backend.services.defect_service import DefectService
 
 router = APIRouter(prefix="/defects", tags=["defects"])
@@ -61,3 +61,30 @@ def get_defect(
             detail=f"Defect '{defect_id}' not found.",
         )
     return defect
+
+
+@router.put(
+    "/{defect_id}",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update defect details",
+)
+def update_defect(
+    defect_id: str,
+    request: DefectUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update defect details with author governance and status gating.
+    
+    Requirements Addressed:
+        FR-006: Author can update Title, Description, Steps, Expected, Actual, Environment while in 'Open' status.
+        FR-007: Non-author update attempt rejected with HTTP 403 Forbidden.
+        FR-008: Author update attempt past 'Open' status rejected with HTTP 403 Forbidden.
+    """
+    return DefectService.update_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
