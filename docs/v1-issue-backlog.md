@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/v1-issue-backlog.md`  
-**Version:** 1.1 (Synchronized with Actual GitHub Issues #9 through #20)  
+**Version:** 1.2 (Synchronized through Issue #13 / PR #25)  
 
 ---
 
@@ -22,10 +22,10 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | GitHub Issue # | Issue Title | Planned / Executed Branch | Status |
 | :---: | :--- | :--- | :---: |
 | **#9** | Project Skeleton, Configuration & Test Harness Setup | `feature/1-project-skeleton` | **Completed (PR #8)** |
-| **#10** | Implement User Authentication and RBAC Foundation | `feature/10-auth-and-rbac` | Planned |
-| **#11** | Implement Defect Domain Model and Database Migrations | `feature/11-defect-domain-model` | Planned |
-| **#12** | Implement Defect Creation and Input Validation | `feature/12-defect-creation` | Planned |
-| **#13** | Implement Defect Updating and Reporter Edit Governance | `feature/13-defect-update` | Planned |
+| **#10** | Implement User Authentication and RBAC Foundation | `feature/10-auth-and-rbac` | **Completed (PR #22)** |
+| **#11** | Implement Defect Domain Model and Database Migrations | `feature/11-defect-domain-model` | **Completed (PR #23)** |
+| **#12** | Implement Defect Creation and Input Validation | `feature/12-defect-creation` | **Completed (PR #24)** |
+| **#13** | Implement Defect Updating and Reporter Edit Governance | `feature/13-defect-update` | **Completed (PR #25)** |
 | **#14** | Implement Deterministic Defect Evidence Quality Validation | `feature/14-evidence-validation` | Planned |
 | **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | Planned |
 | **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | Planned |
@@ -54,6 +54,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #10: Implement User Authentication and RBAC Foundation
 - **Branch:** `feature/10-auth-and-rbac`
+- **Status:** **Completed** (Merged into `main` via PR #22; Issue #10 closed)
 - **Purpose:** Implement the `User` entity, password hashing (BCrypt), JWT token issuance/verification, and declarative RBAC dependency injection guards for `ROLE_REPORTER`, `ROLE_DEVELOPER`, `ROLE_QA_TRIAGE`, and `ROLE_ADMIN`.
 - **Requirements Addressed:** `FR-031`, `NFR-001`, `NFR-002`, `NFR-003`
 - **Risk Mitigated:** `RISK-V1-002`
@@ -62,26 +63,28 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   2. Endpoint `POST /api/v1/auth/login` returns valid JWT access token.
   3. Secured routes reject unauthenticated requests with HTTP `401 Unauthorized`.
   4. Role mismatch triggers HTTP `403 Forbidden` with audit logging.
-- **Expected Tests:** `TC-SEC-001`, `TC-SEC-002`, `TC-AUTH-001`, `TC-AUTH-010`
+- **Executed Tests:** `TC-SEC-001`, `TC-SEC-002`, `TC-SEC-003`, `TC-AUTH-001`, `TC-AUTH-010` (15 automated tests)
 - **Dependencies:** Issue #9
 
 ---
 
 ### Issue #11: Implement Defect Domain Model and Database Migrations
 - **Branch:** `feature/11-defect-domain-model`
+- **Status:** **Completed** (Merged into `main` via PR #23; Issue #11 closed)
 - **Purpose:** Define the SQLAlchemy 2.0 `Defect` and `DefectHistory` ORM entities and generate initial Alembic migration scripts.
 - **Requirements Addressed:** `FR-004`, `FR-005`, `NFR-004`, `NFR-005`, `NFR-012`
 - **Acceptance Criteria:**
   1. Relational schema created with foreign keys linking `reporter_id` and `assignee_id` to `User.id`.
   2. Defect entity includes all 17 standard engineering fields plus `version` token initialized to `1`.
   3. Database migration executes and rolls back cleanly without data corruption.
-- **Expected Tests:** `TC-SYS-003`, schema migration verification tests.
+- **Executed Tests:** `TC-SYS-003`, schema migration verification tests (`test_defect_model.py`, 9 tests)
 - **Dependencies:** Issue #9, #10
 
 ---
 
 ### Issue #12: Implement Defect Creation and Input Validation
 - **Branch:** `feature/12-defect-creation`
+- **Status:** **Completed** (Merged into `main` via PR #24; Issue #12 closed)
 - **Purpose:** Implement `POST /api/v1/defects` with Pydantic boundary validation for title, description, and enum domains (Severity, Priority).
 - **Requirements Addressed:** `FR-001`, `FR-002`, `FR-003`, `FR-004`, `FR-005`, `FR-009`, `FR-010`
 - **Acceptance Criteria:**
@@ -89,13 +92,14 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   2. Title < 10 or > 120 chars, or empty/whitespace, rejected with HTTP `422`.
   3. Description < 30 chars rejected with HTTP `422`.
   4. Invalid severity/priority enums rejected with HTTP `422`.
-- **Expected Tests:** `TC-DEF-001` through `TC-DEF-006`, `TC-DEF-010`
+- **Executed Tests:** `TC-DEF-001` through `TC-DEF-006`, `TC-DEF-010` (`test_defect_creation.py`, 16 tests)
 - **Dependencies:** Issue #11
 
 ---
 
 ### Issue #13: Implement Defect Updating and Reporter Edit Governance
 - **Branch:** `feature/13-defect-update`
+- **Status:** **Completed (PR #25)** (Implemented and verified; PR #25 opened targeting `main`)
 - **Purpose:** Implement `PUT /api/v1/defects/{id}` allowing reporters to rectify their own defect reports while strictly in `Open` status.
 - **Requirements Addressed:** `FR-006`, `FR-007`, `FR-008`
 - **Risk Mitigated:** `RISK-V1-002`
@@ -103,14 +107,15 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   1. Author can update description, steps, and environment while status is `Open`.
   2. Non-author update attempt rejected with HTTP `403 Forbidden`.
   3. Author update attempt past `Open` status rejected with HTTP `403 Forbidden`.
-  4. Successful update increments `version` token.
-- **Expected Tests:** `TC-DEF-007`, `TC-DEF-008`, `TC-DEF-009`
+  4. Successful update increments `version` token and logs audit deltas to `DefectHistory`.
+- **Executed Tests:** `TC-DEF-007`, `TC-DEF-008`, `TC-DEF-009` (`test_defect_update.py`, 10 tests)
 - **Dependencies:** Issue #12
 
 ---
 
 ### Issue #14: Implement Deterministic Defect Evidence Quality Validation
 - **Branch:** `feature/14-evidence-validation`
+- **Status:** Planned
 - **Purpose:** Implement `EvidenceValidationService` to enforce evidence thresholds before defects can transition to `Triaged`.
 - **Requirements Addressed:** `FR-011` through `FR-016`
 - **Risk Mitigated:** `RISK-V1-003`
@@ -125,6 +130,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #15: Implement Defect Lifecycle State Machine
 - **Branch:** `feature/15-defect-lifecycle-fsm`
+- **Status:** Planned
 - **Purpose:** Implement the finite-state machine transitions: `Open` &rarr; `Triaged` &rarr; `Assigned` &rarr; `In Progress` &rarr; `Fixed` &rarr; `Retest` &rarr; `Closed` (and `Reopened`).
 - **Requirements Addressed:** `FR-021` through `FR-030`
 - **Risk Mitigated:** `RISK-V1-001`, `RISK-V1-007`, `RISK-V1-008`
@@ -141,6 +147,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #16: Implement Assignment and Role-Based Authorization Enforcement
 - **Branch:** `feature/16-assignment-and-rbac`
+- **Status:** Planned
 - **Purpose:** Enforce role-based boundaries on triage, assignment, progress, retesting, and defect closure.
 - **Requirements Addressed:** `FR-032` through `FR-037`
 - **Risk Mitigated:** `RISK-V1-002`, `RISK-V1-006`
@@ -155,6 +162,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #17: Implement Defect Search, Filtering, Sorting and Pagination
 - **Branch:** `feature/17-search-and-filtering`
+- **Status:** Planned
 - **Purpose:** Implement `GET /api/v1/defects` with query filtering, full-text substring search, sorting, and pagination.
 - **Requirements Addressed:** `FR-041`, `FR-042`, `FR-043`, `FR-044`
 - **Acceptance Criteria:**
@@ -169,6 +177,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #18: Implement Immutable Defect History and Audit Traceability
 - **Branch:** `feature/18-defect-history`
+- **Status:** Planned
 - **Purpose:** Implement automatic audit logging of all state transitions, field mutations, and assignments to `DefectHistory`. Expose `GET /api/v1/defects/{id}/history`.
 - **Requirements Addressed:** `FR-049`, `FR-050`, `FR-051`, `FR-052`
 - **Risk Mitigated:** `RISK-V1-005`
@@ -183,6 +192,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #19: Implement Optimistic Concurrency and Stale Update Protection
 - **Branch:** `feature/19-concurrency-protection`
+- **Status:** Planned
 - **Purpose:** Integrate optimistic locking via SQLAlchemy `version_id_col` and reject concurrent stale mutations with HTTP `409 Conflict`.
 - **Requirements Addressed:** `FR-056` through `FR-060`
 - **Risk Mitigated:** `RISK-V1-004`
@@ -197,6 +207,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #20: Execute Complete Version 1 System Testing and Baseline Verification
 - **Branch:** `test/20-v1-system-testing`
+- **Status:** Planned
 - **Purpose:** Execute the comprehensive Version 1 system test suite, verify all 61 planned Version 1 test cases, compile evidence into `docs/testing/v1-system-test-results.md`, and prepare release tag `v1.0.0`.
 - **Requirements Addressed:** All V1 Functional and Non-Functional Requirements (`FR-001` through `FR-060`, `NFR-001` through `NFR-012`).
 - **Risks Mitigated:** All Version 1 Risks (`RISK-V1-001` through `RISK-V1-008`).
