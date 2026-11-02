@@ -2,7 +2,7 @@
 
 from backend.schemas.user import UserRegisterRequest, UserResponse
 from backend.schemas.auth import UserLoginRequest, TokenResponse
-from backend.schemas.defect import DefectCreate, DefectResponse, DefectHistoryResponse
+from backend.schemas.defect import DefectCreate, DefectUpdate, DefectResponse, DefectHistoryResponse
 
 __all__ = [
     "UserRegisterRequest",
@@ -10,6 +10,7 @@ __all__ = [
     "UserLoginRequest",
     "TokenResponse",
     "DefectCreate",
+    "DefectUpdate",
     "DefectResponse",
     "DefectHistoryResponse",
 ]

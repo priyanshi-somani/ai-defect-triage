@@ -6,6 +6,7 @@ Addresses Requirements:
 - FR-003: Description boundary validation (minimum 30 chars)
 - FR-004: ID, timestamp, and reporter_id assignment
 - FR-005: Initial status 'Open' and version 1
+- FR-006: Defect update boundary validation
 - FR-009: Severity enum validation
 - FR-010: Priority enum validation
 """
@@ -119,6 +120,125 @@ class DefectCreate(BaseModel):
     @classmethod
     def validate_module(cls, v: str) -> str:
         """Validate module non-empty and max length."""
+        if not isinstance(v, str):
+            raise ValueError("Module must be a string.")
+        v = v.strip()
+        if len(v) < 1:
+            raise ValueError("Module cannot be empty or whitespace-only.")
+        if len(v) > 100:
+            raise ValueError("Module must not exceed 100 characters.")
+        return v
+
+
+class DefectUpdate(BaseModel):
+    """Request payload for updating an existing defect report."""
+    title: Optional[str] = Field(
+        default=None,
+        description="Updated summary of the defect (10-120 characters, non-numeric, non-empty)",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Updated description of symptoms (min 30 characters)",
+    )
+    steps_to_reproduce: Optional[str] = Field(
+        default=None,
+        description="Updated sequence of reproduction steps (min 20 characters)",
+    )
+    expected_result: Optional[str] = Field(
+        default=None,
+        description="Updated expected behavior (min 10 characters)",
+    )
+    actual_result: Optional[str] = Field(
+        default=None,
+        description="Updated observed behavior (min 10 characters)",
+    )
+    environment: Optional[str] = Field(
+        default=None,
+        description="Updated client/server environment details (1-255 characters)",
+    )
+    module: Optional[str] = Field(
+        default=None,
+        description="Updated subsystem or architectural component (1-100 characters)",
+    )
+    severity: Optional[DefectSeverity] = Field(
+        default=None,
+        description="Updated technical severity level (governed by QA/Admin)",
+    )
+    priority: Optional[DefectPriority] = Field(
+        default=None,
+        description="Updated priority level (governed by QA/Admin)",
+    )
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def validate_title(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError("Title must be a string.")
+        v = v.strip()
+        if len(v) < 10 or len(v) > 120:
+            raise ValueError("Title must be between 10 and 120 characters in length.")
+        if v.isdigit():
+            raise ValueError("Title cannot be purely numeric.")
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError("Description must be a string.")
+        v = v.strip()
+        if len(v) < 30:
+            raise ValueError("Description must be at least 30 characters in length.")
+        return v
+
+    @field_validator("steps_to_reproduce", mode="before")
+    @classmethod
+    def validate_steps_to_reproduce(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError("Steps to reproduce must be a string.")
+        v = v.strip()
+        if len(v) < 20:
+            raise ValueError("Steps to reproduce must be at least 20 characters in length.")
+        return v
+
+    @field_validator("expected_result", "actual_result", mode="before")
+    @classmethod
+    def validate_result_fields(cls, v: Optional[str], info) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be a string.")
+        v = v.strip()
+        if len(v) < 10:
+            field_display = info.field_name.replace("_", " ").capitalize()
+            raise ValueError(f"{field_display} must be at least 10 characters in length.")
+        return v
+
+    @field_validator("environment", mode="before")
+    @classmethod
+    def validate_environment(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise ValueError("Environment must be a string.")
+        v = v.strip()
+        if len(v) < 1:
+            raise ValueError("Environment cannot be empty or whitespace-only.")
+        if len(v) > 255:
+            raise ValueError("Environment must not exceed 255 characters.")
+        return v
+
+    @field_validator("module", mode="before")
+    @classmethod
+    def validate_module(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
         if not isinstance(v, str):
             raise ValueError("Module must be a string.")
         v = v.strip()
