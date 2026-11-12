@@ -9,7 +9,8 @@ from backend.models.defect import Defect
 from backend.models.history import DefectHistory
 from backend.models.user import User
 from backend.models.enums import UserRole, DefectStatus, DefectSeverity, DefectPriority, AuditActionType
-from backend.schemas.defect import DefectCreate, DefectUpdate
+from backend.schemas.defect import DefectCreate, DefectUpdate, DefectTriageRequest
+from backend.services.evidence_validation_service import EvidenceValidationService
 
 logger = logging.getLogger("defect.service")
 
@@ -216,3 +217,76 @@ class DefectService:
     def get_defect_by_id(db: Session, defect_id: str) -> Optional[Defect]:
         """Retrieve a defect by its unique identifier."""
         return db.query(Defect).filter(Defect.id == defect_id).first()
+
+    @staticmethod
+    def triage_defect(
+        db: Session,
+        defect_id: str,
+        current_user: User,
+        request: Optional[DefectTriageRequest] = None,
+    ) -> Defect:
+        """Evaluate defect evidence and transition status from Open to Triaged.
+
+        Requirements:
+            FR-011: Evaluate defect evidence completeness against quality gates.
+            FR-012: Steps to Reproduce >= 2 numbered steps and >= 20 chars.
+            FR-013: Expected and Actual results >= 10 chars each and non-identical.
+            FR-014: Environment specifies target OS, client/browser version, and deployment environment.
+            FR-015: Reject with HTTP 422 itemized error array on failure.
+            FR-016: Defect retained in Open status until resolved.
+            FR-032: Permitted only for ROLE_QA_TRIAGE or ROLE_ADMIN.
+        """
+        defect = db.query(Defect).filter(Defect.id == defect_id).first()
+        if not defect:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Defect '{defect_id}' not found.",
+            )
+
+        if defect.status != DefectStatus.OPEN.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot triage defect currently in '{defect.status}' status. Only defects in 'Open' status can be triaged.",
+            )
+
+        # Validate evidence through the deterministic Evidence Quality Gate (FR-011 - FR-016)
+        EvidenceValidationService.validate_or_raise(defect)
+
+        old_status = defect.status
+        defect.status = DefectStatus.TRIAGED.value
+
+        deltas = [("status", old_status, defect.status)]
+
+        if request:
+            if request.severity is not None and request.severity.value != defect.severity:
+                deltas.append(("severity", defect.severity, request.severity.value))
+                defect.severity = request.severity.value
+            if request.priority is not None and request.priority.value != defect.priority:
+                deltas.append(("priority", defect.priority, request.priority.value))
+                defect.priority = request.priority.value
+
+        db.flush()  # Increments version via version_id_col
+
+        for field, old_v, new_v in deltas:
+            history = DefectHistory(
+                defect_id=defect.id,
+                changed_by_user_id=current_user.id,
+                action_type=AuditActionType.STATUS_CHANGED.value if field == "status" else AuditActionType.UPDATED.value,
+                field_name=field,
+                old_value=old_v,
+                new_value=new_v,
+                version_snapshot=defect.version,
+            )
+            db.add(history)
+
+        db.commit()
+        db.refresh(defect)
+
+        logger.info(
+            "DEFECT_TRIAGED: Defect '%s' successfully promoted to 'Triaged' by user '%s' (version=%d)",
+            defect.id,
+            current_user.username,
+            defect.version,
+        )
+        return defect
+

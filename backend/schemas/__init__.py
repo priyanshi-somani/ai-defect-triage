@@ -2,7 +2,15 @@
 
 from backend.schemas.user import UserRegisterRequest, UserResponse
 from backend.schemas.auth import UserLoginRequest, TokenResponse
-from backend.schemas.defect import DefectCreate, DefectUpdate, DefectResponse, DefectHistoryResponse
+from backend.schemas.defect import (
+    DefectCreate,
+    DefectUpdate,
+    DefectResponse,
+    DefectHistoryResponse,
+    DefectTriageRequest,
+    EvidenceValidationError,
+    EvidenceValidationResponse,
+)
 
 __all__ = [
     "UserRegisterRequest",
@@ -13,4 +21,7 @@ __all__ = [
     "DefectUpdate",
     "DefectResponse",
     "DefectHistoryResponse",
+    "DefectTriageRequest",
+    "EvidenceValidationError",
+    "EvidenceValidationResponse",
 ]

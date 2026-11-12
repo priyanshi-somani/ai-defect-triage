@@ -26,7 +26,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | **#11** | Implement Defect Domain Model and Database Migrations | `feature/11-defect-domain-model` | **Completed (PR #23)** |
 | **#12** | Implement Defect Creation and Input Validation | `feature/12-defect-creation` | **Completed (PR #24)** |
 | **#13** | Implement Defect Updating and Reporter Edit Governance | `feature/13-defect-update` | **Completed (PR #25)** |
-| **#14** | Implement Deterministic Defect Evidence Quality Validation | `feature/14-evidence-validation` | Planned |
+| **#14** | Implement Deterministic Defect Evidence Quality Validation | `feature/14-evidence-validation` | **Completed (PR #26)** |
 | **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | Planned |
 | **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | Planned |
 | **#17** | Implement Defect Search, Filtering, Sorting and Pagination | `feature/17-search-and-filtering` | Planned |
@@ -115,15 +115,15 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #14: Implement Deterministic Defect Evidence Quality Validation
 - **Branch:** `feature/14-evidence-validation`
-- **Status:** Planned
+- **Status:** **Completed (PR #26)** (Implemented and verified; PR #26 opened targeting `main`)
 - **Purpose:** Implement `EvidenceValidationService` to enforce evidence thresholds before defects can transition to `Triaged`.
 - **Requirements Addressed:** `FR-011` through `FR-016`
 - **Risk Mitigated:** `RISK-V1-003`
 - **Acceptance Criteria:**
-  1. Validates: Steps to Reproduce &ge; 2 numbered steps and &ge; 20 chars; Expected and Actual results &ge; 10 chars and non-identical; Environment non-empty.
+  1. Validates: Steps to Reproduce &ge; 2 numbered steps and &ge; 20 chars; Expected and Actual results &ge; 10 chars and non-identical; Environment non-empty (specifies target OS, client/browser version, and deployment environment).
   2. Attempting to triage a defect lacking required evidence returns HTTP `422 Unprocessable Entity` containing an itemized error array.
   3. Defect remains in `Open` until all evidence rules pass.
-- **Expected Tests:** `TC-EVID-001` through `TC-EVID-007`
+- **Executed Tests:** `TC-EVID-001` through `TC-EVID-007` (`test_evidence_validation.py`, 25 tests)
 - **Dependencies:** Issue #12, #13
 
 ---

@@ -12,7 +12,7 @@ Addresses Requirements:
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from backend.models.enums import DefectStatus, DefectSeverity, DefectPriority
 
@@ -290,3 +290,32 @@ class DefectHistoryResponse(BaseModel):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DefectTriageRequest(BaseModel):
+    """Request payload for triaging a defect through the quality gate."""
+    severity: Optional[DefectSeverity] = Field(
+        default=None,
+        description="Confirmed or adjusted technical severity level",
+    )
+    priority: Optional[DefectPriority] = Field(
+        default=None,
+        description="Confirmed or adjusted resolution priority level",
+    )
+
+
+class EvidenceValidationError(BaseModel):
+    """Itemized defect evidence validation error representation."""
+    field: str = Field(..., description="Name of the defective field")
+    message: str = Field(..., description="Description of the deficiency")
+    rule: str = Field(..., description="Requirement rule ID (e.g., FR-012)")
+
+
+class EvidenceValidationResponse(BaseModel):
+    """Response payload for evidence inspection check."""
+    is_valid: bool = Field(..., description="True if all evidence quality criteria pass")
+    errors: List[EvidenceValidationError] = Field(
+        default_factory=list,
+        description="Itemized array of evidence deficiencies",
+    )
+
