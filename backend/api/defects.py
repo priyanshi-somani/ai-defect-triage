@@ -1,13 +1,22 @@
 """Defect management API endpoints."""
 
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.auth_deps import get_current_user
+from backend.auth_deps import get_current_user, require_roles
 from backend.models.user import User
-from backend.schemas.defect import DefectCreate, DefectUpdate, DefectResponse
+from backend.models.enums import UserRole
+from backend.schemas.defect import (
+    DefectCreate,
+    DefectUpdate,
+    DefectResponse,
+    DefectTriageRequest,
+    EvidenceValidationResponse,
+)
 from backend.services.defect_service import DefectService
+from backend.services.evidence_validation_service import EvidenceValidationService
 
 router = APIRouter(prefix="/defects", tags=["defects"])
 
@@ -88,3 +97,65 @@ def update_defect(
         request=request,
         current_user=current_user,
     )
+
+
+@router.post(
+    "/{defect_id}/triage",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Triage defect through deterministic evidence quality gate",
+)
+def triage_defect(
+    defect_id: str,
+    request: Optional[DefectTriageRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
+):
+    """Transition defect from Open to Triaged upon passing deterministic evidence quality gate.
+
+    Requirements Addressed:
+        FR-011: Complete deterministic evidence quality evaluation.
+        FR-012: Steps to Reproduce >= 2 numbered steps and >= 20 chars.
+        FR-013: Expected and Actual results >= 10 chars each and non-identical.
+        FR-014: Environment specifies target OS, client/browser version, and tier.
+        FR-015: Reject transitions with HTTP 422 itemized error array.
+        FR-016: Retain defect in Open status on failure.
+        FR-032: Permitted only for ROLE_QA_TRIAGE or ROLE_ADMIN.
+    """
+    return DefectService.triage_defect(
+        db=db,
+        defect_id=defect_id,
+        current_user=current_user,
+        request=request,
+    )
+
+
+@router.get(
+    "/{defect_id}/validate-evidence",
+    response_model=EvidenceValidationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Inspect defect evidence quality without state mutation",
+)
+def inspect_defect_evidence(
+    defect_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
+):
+    """Inspect defect evidence completeness against quality gates without state transition.
+
+    Requirements Addressed:
+        FR-011: Evidence quality gate evaluation.
+        FR-032: Authorized for QA/Triage and Admin.
+    """
+    defect = DefectService.get_defect_by_id(db, defect_id)
+    if not defect:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Defect '{defect_id}' not found.",
+        )
+    result = EvidenceValidationService.evaluate_evidence(defect)
+    return EvidenceValidationResponse(
+        is_valid=result.is_valid,
+        errors=result.errors,
+    )
+
