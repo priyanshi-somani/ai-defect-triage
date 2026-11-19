@@ -14,9 +14,15 @@ from backend.schemas.defect import (
     DefectResponse,
     DefectTriageRequest,
     EvidenceValidationResponse,
+    DefectTransitionRequest,
+    DefectAssignRequest,
+    DefectResolveRequest,
+    DefectCloseRequest,
+    DefectReopenRequest,
 )
 from backend.services.defect_service import DefectService
 from backend.services.evidence_validation_service import EvidenceValidationService
+from backend.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/defects", tags=["defects"])
 
@@ -158,4 +164,165 @@ def inspect_defect_evidence(
         is_valid=result.is_valid,
         errors=result.errors,
     )
+
+
+# ==============================================================================
+# FSM Lifecycle Workflow State Transitions (FR-021 through FR-030)
+# ==============================================================================
+
+@router.post(
+    "/{defect_id}/transition",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Execute finite-state machine lifecycle transition",
+)
+def transition_defect(
+    defect_id: str,
+    request: DefectTransitionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Execute a validated finite-state machine state transition.
+
+    Requirements Addressed:
+        FR-021: Enforce finite-state machine transitions.
+        FR-022: Reject Open -> Closed (HTTP 400).
+        FR-023: Reject Triaged -> In Progress without assignee (HTTP 422).
+        FR-024: Require resolution details for Fixed (HTTP 422).
+        FR-025: Reject Fixed -> Closed (HTTP 400).
+        FR-026: Require verification notes for Closed (HTTP 422).
+        FR-027: Require reopen reason for Retest -> Reopened (HTTP 422).
+        FR-028: Permit Closed -> Reopened with regression notes (HTTP 422).
+        FR-029: Permit Assigned -> Triaged (unassigned).
+        FR-030: Reject illegal transitions (HTTP 400).
+    """
+    return WorkflowService.transition_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/assign",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Assign defect to developer",
+)
+def assign_defect(
+    defect_id: str,
+    request: DefectAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign a defect to a designated developer."""
+    return WorkflowService.assign_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/start-progress",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Commence active investigation/remediation",
+)
+def start_progress(
+    defect_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transition defect status to 'In Progress'."""
+    return WorkflowService.start_progress(
+        db=db,
+        defect_id=defect_id,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/resolve",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resolve defect and mark Fixed",
+)
+def resolve_defect(
+    defect_id: str,
+    request: DefectResolveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transition defect status to 'Fixed' with resolution details (FR-024)."""
+    return WorkflowService.resolve_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/retest",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Begin QA retest verification",
+)
+def start_retest(
+    defect_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transition defect status to 'Retest'."""
+    return WorkflowService.start_retest(
+        db=db,
+        defect_id=defect_id,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/close",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Close verified defect",
+)
+def close_defect(
+    defect_id: str,
+    request: DefectCloseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transition defect status to 'Closed' with verification notes (FR-026)."""
+    return WorkflowService.close_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post(
+    "/{defect_id}/reopen",
+    response_model=DefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reopen defect after retest failure or regression",
+)
+def reopen_defect(
+    defect_id: str,
+    request: DefectReopenRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transition defect status to 'Reopened' with failure explanation (FR-027, FR-028)."""
+    return WorkflowService.reopen_defect(
+        db=db,
+        defect_id=defect_id,
+        request=request,
+        current_user=current_user,
+    )
+
 

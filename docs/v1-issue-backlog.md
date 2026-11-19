@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/v1-issue-backlog.md`  
-**Version:** 1.2 (Synchronized through Issue #13 / PR #25)  
+**Version:** 1.3 (Synchronized through Issue #15 / PR #27)  
 
 ---
 
@@ -27,7 +27,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | **#12** | Implement Defect Creation and Input Validation | `feature/12-defect-creation` | **Completed (PR #24)** |
 | **#13** | Implement Defect Updating and Reporter Edit Governance | `feature/13-defect-update` | **Completed (PR #25)** |
 | **#14** | Implement Deterministic Defect Evidence Quality Validation | `feature/14-evidence-validation` | **Completed (PR #26)** |
-| **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | Planned |
+| **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | **Completed (PR #27)** |
 | **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | Planned |
 | **#17** | Implement Defect Search, Filtering, Sorting and Pagination | `feature/17-search-and-filtering` | Planned |
 | **#18** | Implement Immutable Defect History and Audit Traceability | `feature/18-defect-history` | Planned |
@@ -130,7 +130,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #15: Implement Defect Lifecycle State Machine
 - **Branch:** `feature/15-defect-lifecycle-fsm`
-- **Status:** Planned
+- **Status:** **Completed (PR #27)** (Implemented and verified; PR #27 opened targeting `main`)
 - **Purpose:** Implement the finite-state machine transitions: `Open` &rarr; `Triaged` &rarr; `Assigned` &rarr; `In Progress` &rarr; `Fixed` &rarr; `Retest` &rarr; `Closed` (and `Reopened`).
 - **Requirements Addressed:** `FR-021` through `FR-030`
 - **Risk Mitigated:** `RISK-V1-001`, `RISK-V1-007`, `RISK-V1-008`
@@ -140,7 +140,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   3. Moving to `In Progress` requires non-null assignee.
   4. Moving to `Fixed` requires resolution notes, root cause, and fix reference.
   5. Retest failure increments `reopen_count` and moves to `Reopened`.
-- **Expected Tests:** `TC-WF-001` through `TC-WF-012`
+- **Executed Tests:** `TC-WF-001` through `TC-WF-012` (`test_defect_workflow.py`, 18 tests)
 - **Dependencies:** Issue #14
 
 ---
