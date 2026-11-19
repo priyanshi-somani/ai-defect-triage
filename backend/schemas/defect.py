@@ -319,3 +319,76 @@ class EvidenceValidationResponse(BaseModel):
         description="Itemized array of evidence deficiencies",
     )
 
+
+class DefectTransitionRequest(BaseModel):
+    """Unified request payload for executing a defect lifecycle state transition."""
+    target_status: DefectStatus = Field(
+        ...,
+        description="Target lifecycle state to transition into",
+    )
+    assignee_id: Optional[int] = Field(
+        default=None,
+        description="Target developer user ID (mandatory for Assigned, optional for In Progress)",
+    )
+    root_cause: Optional[str] = Field(
+        default=None,
+        description="Root cause analysis (mandatory for Fixed)",
+    )
+    resolution_notes: Optional[str] = Field(
+        default=None,
+        description="Remediation details and resolution summary (mandatory for Fixed)",
+    )
+    fix_reference: Optional[str] = Field(
+        default=None,
+        description="Commit hash, PR URL, or build identifier containing the fix (mandatory for Fixed)",
+    )
+    verification_notes: Optional[str] = Field(
+        default=None,
+        description="QA verification notes and test build info (mandatory for Closed, min 15 chars)",
+    )
+    reopen_reason: Optional[str] = Field(
+        default=None,
+        description="Failure evidence or regression explanation (mandatory for Reopened, min 20 chars)",
+    )
+
+
+class DefectAssignRequest(BaseModel):
+    """Request payload for assigning a defect to a developer."""
+    assignee_id: int = Field(
+        ...,
+        description="User ID of the assigned developer",
+    )
+
+
+class DefectResolveRequest(BaseModel):
+    """Request payload for marking a defect Fixed."""
+    root_cause: str = Field(
+        ...,
+        description="Root cause analysis description",
+    )
+    resolution_notes: str = Field(
+        ...,
+        description="Remediation actions taken and fix summary",
+    )
+    fix_reference: str = Field(
+        ...,
+        description="Commit hash, PR link, or build artifact reference",
+    )
+
+
+class DefectCloseRequest(BaseModel):
+    """Request payload for closing a verified defect."""
+    verification_notes: str = Field(
+        ...,
+        description="QA verification procedure, test environment, and pass evidence (min 15 chars)",
+    )
+
+
+class DefectReopenRequest(BaseModel):
+    """Request payload for reopening a failed retest or regressed defect."""
+    reopen_reason: str = Field(
+        ...,
+        description="Detailed failure evidence or regression context (min 20 chars)",
+    )
+
+

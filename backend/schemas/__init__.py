@@ -10,6 +10,11 @@ from backend.schemas.defect import (
     DefectTriageRequest,
     EvidenceValidationError,
     EvidenceValidationResponse,
+    DefectTransitionRequest,
+    DefectAssignRequest,
+    DefectResolveRequest,
+    DefectCloseRequest,
+    DefectReopenRequest,
 )
 
 __all__ = [
@@ -24,4 +29,9 @@ __all__ = [
     "DefectTriageRequest",
     "EvidenceValidationError",
     "EvidenceValidationResponse",
+    "DefectTransitionRequest",
+    "DefectAssignRequest",
+    "DefectResolveRequest",
+    "DefectCloseRequest",
+    "DefectReopenRequest",
 ]

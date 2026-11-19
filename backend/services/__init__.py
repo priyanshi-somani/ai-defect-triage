@@ -7,4 +7,12 @@ from backend.services.evidence_validation_service import (
     EvidenceQualityError,
 )
 
-__all__ = ["AuthService", "DefectService", "EvidenceValidationService", "EvidenceQualityError"]
+from backend.services.workflow_service import WorkflowService
+
+__all__ = [
+    "AuthService",
+    "DefectService",
+    "EvidenceValidationService",
+    "EvidenceQualityError",
+    "WorkflowService",
+]
