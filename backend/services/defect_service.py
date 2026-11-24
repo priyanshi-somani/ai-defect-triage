@@ -254,6 +254,29 @@ class DefectService:
         return db.query(Defect).filter(Defect.id == defect_id).first()
 
     @staticmethod
+    def get_defect_history(db: Session, defect_id: str) -> List[DefectHistory]:
+        """Retrieve complete chronological audit log entries for a given defect.
+
+        Requirements Addressed:
+            FR-049: Audit trail tracking status transitions, assignments, and updates.
+            FR-050: Itemized audit record attributes.
+            FR-051: Chronological history retrieval for authenticated users.
+        """
+        defect = db.query(Defect).filter(Defect.id == defect_id).first()
+        if not defect:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Defect '{defect_id}' not found.",
+            )
+
+        return (
+            db.query(DefectHistory)
+            .filter(DefectHistory.defect_id == defect_id)
+            .order_by(DefectHistory.timestamp.asc(), DefectHistory.id.asc())
+            .all()
+        )
+
+    @staticmethod
     def triage_defect(
         db: Session,
         defect_id: str,

@@ -13,6 +13,7 @@ from backend.schemas.defect import (
     DefectCreate,
     DefectUpdate,
     DefectResponse,
+    DefectHistoryResponse,
     PaginatedDefectResponse,
     DefectTriageRequest,
     EvidenceValidationResponse,
@@ -151,6 +152,28 @@ def get_defect(
             detail=f"Defect '{defect_id}' not found.",
         )
     return defect
+
+
+@router.get(
+    "/{defect_id}/history",
+    response_model=List[DefectHistoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve chronological audit history for a defect",
+)
+def get_defect_history(
+    defect_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve chronological audit trail of all mutations to the specified defect.
+
+    Requirements Addressed:
+        FR-049: Audit log tracking status transitions, assignments, and field edits.
+        FR-050: Itemized audit log entry attributes.
+        FR-051: Chronological history access open to all authenticated roles.
+        OP_VIEW_AUDIT_LOG: Permitted for Reporter, Developer, QA/Triage, and Admin.
+    """
+    return DefectService.get_defect_history(db=db, defect_id=defect_id)
 
 
 @router.put(
