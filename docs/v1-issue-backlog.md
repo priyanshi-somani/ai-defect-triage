@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/v1-issue-backlog.md`  
-**Version:** 1.7 (Synchronized through Issue #19 / PR #31)  
+**Version:** 1.8 (Synchronized through Issue #20 / PR #32 — Version 1.0 Baseline Complete)  
 
 ---
 
@@ -32,7 +32,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | **#17** | Implement Defect Search, Filtering, Sorting and Pagination | `feature/17-search-and-filtering` | **Completed (PR #29)** |
 | **#18** | Implement Immutable Defect History and Audit Traceability | `feature/18-defect-history` | **Completed (PR #30)** |
 | **#19** | Implement Optimistic Concurrency and Stale Update Protection | `feature/19-concurrency-protection` | **Completed (PR #31)** |
-| **#20** | Execute Complete Version 1 System Testing and Baseline Verification | `test/20-v1-system-testing` | Planned |
+| **#20** | Execute Complete Version 1 System Testing and Baseline Verification | `test/20-v1-system-testing` | **Completed (PR #32)** |
 
 ---
 
@@ -207,14 +207,14 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #20: Execute Complete Version 1 System Testing and Baseline Verification
 - **Branch:** `test/20-v1-system-testing`
-- **Status:** Planned
+- **Status:** **Completed (PR #32)** (Executed and verified; PR #32 opened targeting `main`)
 - **Purpose:** Execute the comprehensive Version 1 system test suite, verify all 61 planned Version 1 test cases, compile evidence into `docs/testing/v1-system-test-results.md`, and prepare release tag `v1.0.0`.
 - **Requirements Addressed:** All V1 Functional and Non-Functional Requirements (`FR-001` through `FR-060`, `NFR-001` through `NFR-012`).
 - **Risks Mitigated:** All Version 1 Risks (`RISK-V1-001` through `RISK-V1-008`).
 - **Acceptance Criteria:**
-  1. 100% of unit, integration, and system tests pass (61 test cases).
-  2. Statement coverage &ge; 85%.
-  3. All system test results documented in [testing/v1-system-test-results.md](testing/v1-system-test-results.md).
+  1. 100% of unit, integration, and system tests pass (61 planned test cases, 138 automated test executions).
+  2. Statement coverage &ge; 85% (Achieved: **93%**).
+  3. All system test results documented in [docs/testing/v1-system-test-results.md](testing/v1-system-test-results.md).
   4. Repository is ready for Git baseline tagging: **`v1.0.0`**.
-- **Expected Tests:** Complete Master Test Suite (`TC-DEF`, `TC-EVID`, `TC-WF`, `TC-AUTH`, `TC-SRCH`, `TC-HIST`, `TC-CONC`, `TC-SEC`, `TC-SYS`).
+- **Executed Tests:** Complete Master Test Suite (`TC-DEF`, `TC-EVID`, `TC-WF`, `TC-AUTH`, `TC-SRCH`, `TC-HIST`, `TC-CONC`, `TC-SEC`, `TC-SYS` — 138 automated tests)
 - **Dependencies:** Issues #9 through #19
