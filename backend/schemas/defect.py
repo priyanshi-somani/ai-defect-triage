@@ -168,6 +168,10 @@ class DefectUpdate(BaseModel):
         default=None,
         description="Updated priority level (governed by QA/Admin)",
     )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
+    )
 
     @field_validator("title", mode="before")
     @classmethod
@@ -345,6 +349,10 @@ class DefectTriageRequest(BaseModel):
         default=None,
         description="Confirmed or adjusted resolution priority level",
     )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
+    )
 
 
 class EvidenceValidationError(BaseModel):
@@ -393,6 +401,10 @@ class DefectTransitionRequest(BaseModel):
         default=None,
         description="Failure evidence or regression explanation (mandatory for Reopened, min 20 chars)",
     )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
+    )
 
 
 class DefectAssignRequest(BaseModel):
@@ -400,6 +412,10 @@ class DefectAssignRequest(BaseModel):
     assignee_id: int = Field(
         ...,
         description="User ID of the assigned developer",
+    )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
     )
 
 
@@ -417,6 +433,10 @@ class DefectResolveRequest(BaseModel):
         ...,
         description="Commit hash, PR link, or build artifact reference",
     )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
+    )
 
 
 class DefectCloseRequest(BaseModel):
@@ -424,6 +444,10 @@ class DefectCloseRequest(BaseModel):
     verification_notes: str = Field(
         ...,
         description="QA verification procedure, test environment, and pass evidence (min 15 chars)",
+    )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
     )
 
 
@@ -433,5 +457,25 @@ class DefectReopenRequest(BaseModel):
         ...,
         description="Detailed failure evidence or regression context (min 20 chars)",
     )
+    version: Optional[int] = Field(
+        default=None,
+        description="Expected concurrency version token for optimistic locking (FR-056–FR-060)",
+    )
+
+
+class DefectConflictResponse(BaseModel):
+    """Conflict error payload returned on optimistic concurrency collisions (HTTP 409).
+
+    Requirements Addressed:
+        FR-059: Reject stale mutation with HTTP 409 Conflict.
+        FR-060: Return latest server-side defect representation.
+    """
+    message: str = Field(..., description="Explanation of the concurrency conflict")
+    current_version: int = Field(..., description="Current database version of the defect")
+    submitted_version: Optional[int] = Field(default=None, description="Stale version submitted by the client")
+    latest_defect: DefectResponse = Field(..., description="Latest database representation of the defect")
+
+
+ConflictErrorResponse = DefectConflictResponse
 
 

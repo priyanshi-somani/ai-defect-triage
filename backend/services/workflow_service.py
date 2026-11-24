@@ -20,6 +20,7 @@ import logging
 from typing import Dict, Set, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from backend.models.defect import Defect
 from backend.models.history import DefectHistory
@@ -30,12 +31,14 @@ from backend.models.enums import (
     UserRole,
 )
 from backend.schemas.defect import (
+    DefectResponse,
     DefectTransitionRequest,
     DefectAssignRequest,
     DefectResolveRequest,
     DefectCloseRequest,
     DefectReopenRequest,
 )
+from backend.services.defect_service import ConcurrencyConflictError
 from backend.services.evidence_validation_service import EvidenceValidationService
 
 logger = logging.getLogger("workflow.service")
@@ -397,6 +400,7 @@ class WorkflowService:
         defect_id: str,
         request: DefectTransitionRequest,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Execute a state machine transition with mandatory pre-conditions and audit trail.
 
@@ -411,12 +415,41 @@ class WorkflowService:
             FR-028: Permit Closed -> Reopened with regression notes.
             FR-029: Permit Assigned -> Triaged (clearing assignee).
             FR-030: Reject undefined or illegal transitions with HTTP 400.
+            FR-056–FR-060: Optimistic concurrency control and stale transition rejection.
         """
         defect = db.query(Defect).filter(Defect.id == defect_id).first()
         if not defect:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Defect '{defect_id}' not found.",
+            )
+
+        # Concurrency version validation (FR-056 through FR-060)
+        submitted_version = None
+        if request and request.version is not None:
+            submitted_version = request.version
+        elif if_match is not None:
+            clean = if_match.strip().strip('"').strip("'")
+            if clean.startswith("W/"):
+                clean = clean[2:].strip('"')
+            try:
+                submitted_version = int(clean)
+            except ValueError:
+                pass
+
+        if submitted_version is not None and submitted_version != defect.version:
+            latest_repr = DefectResponse.model_validate(defect).model_dump(mode="json")
+            logger.warning(
+                "CONCURRENCY_CONFLICT: Stale state transition rejected on defect '%s'. DB version=%d, submitted version=%d",
+                defect.id,
+                defect.version,
+                submitted_version,
+            )
+            raise ConcurrencyConflictError(
+                message=f"Defect '{defect.id}' was modified by another transaction. Database is at version {defect.version}, but version {submitted_version} was submitted.",
+                current_version=defect.version,
+                submitted_version=submitted_version,
+                latest_defect=latest_repr,
             )
 
         old_status = defect.status
@@ -609,41 +642,60 @@ class WorkflowService:
         # ----------------------------------------------------------------------
         # 3. Apply Status Mutation & Atomic Audit Log Persistence
         # ----------------------------------------------------------------------
-        defect.status = target_status
-        db.flush()  # Increments defect.version via SQLAlchemy version_id_col
+        try:
+            defect.status = target_status
+            db.flush()  # Increments defect.version via SQLAlchemy version_id_col
 
-        # Status change audit event
-        action_type = (
-            AuditActionType.REOPENED.value
-            if target_status == DefectStatus.REOPENED.value
-            else AuditActionType.STATUS_CHANGED.value
-        )
-        status_history = DefectHistory(
-            defect_id=defect.id,
-            changed_by_user_id=current_user.id,
-            action_type=action_type,
-            field_name="status",
-            old_value=old_status,
-            new_value=target_status,
-            version_snapshot=defect.version,
-        )
-        db.add(status_history)
-
-        # Assignee change audit event (if assignee was mutated)
-        if old_assignee_id != defect.assignee_id:
-            assign_history = DefectHistory(
+            # Status change audit event
+            action_type = (
+                AuditActionType.REOPENED.value
+                if target_status == DefectStatus.REOPENED.value
+                else AuditActionType.STATUS_CHANGED.value
+            )
+            status_history = DefectHistory(
                 defect_id=defect.id,
                 changed_by_user_id=current_user.id,
-                action_type=AuditActionType.ASSIGNED.value,
-                field_name="assignee_id",
-                old_value=str(old_assignee_id) if old_assignee_id is not None else None,
-                new_value=str(defect.assignee_id) if defect.assignee_id is not None else None,
+                action_type=action_type,
+                field_name="status",
+                old_value=old_status,
+                new_value=target_status,
                 version_snapshot=defect.version,
             )
-            db.add(assign_history)
+            db.add(status_history)
 
-        db.commit()
-        db.refresh(defect)
+            # Assignee change audit event (if assignee was mutated)
+            if old_assignee_id != defect.assignee_id:
+                assign_history = DefectHistory(
+                    defect_id=defect.id,
+                    changed_by_user_id=current_user.id,
+                    action_type=AuditActionType.ASSIGNED.value,
+                    field_name="assignee_id",
+                    old_value=str(old_assignee_id) if old_assignee_id is not None else None,
+                    new_value=str(defect.assignee_id) if defect.assignee_id is not None else None,
+                    version_snapshot=defect.version,
+                )
+                db.add(assign_history)
+
+            db.commit()
+            db.refresh(defect)
+        except StaleDataError:
+            db.rollback()
+            latest = db.query(Defect).filter(Defect.id == defect_id).first()
+            latest_repr = (
+                DefectResponse.model_validate(latest).model_dump(mode="json")
+                if latest
+                else {}
+            )
+            logger.warning(
+                "CONCURRENCY_COLLISION: StaleDataError caught on transition for defect '%s'",
+                defect_id,
+            )
+            raise ConcurrencyConflictError(
+                message=f"Defect '{defect_id}' was concurrently modified by another transaction. Stale transition rejected.",
+                current_version=latest.version if latest else 0,
+                submitted_version=submitted_version,
+                latest_defect=latest_repr,
+            )
 
         logger.info(
             "DEFECT_TRANSITION: Defect '%s' transitioned '%s' -> '%s' by user '%s' (version=%d)",
@@ -662,13 +714,15 @@ class WorkflowService:
         defect_id: str,
         request: DefectAssignRequest,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'Assigned'."""
         transition_req = DefectTransitionRequest(
             target_status=DefectStatus.ASSIGNED,
             assignee_id=request.assignee_id,
+            version=request.version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
 
     @classmethod
     def start_progress(
@@ -676,12 +730,15 @@ class WorkflowService:
         db: Session,
         defect_id: str,
         current_user: User,
+        if_match: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'In Progress'."""
         transition_req = DefectTransitionRequest(
             target_status=DefectStatus.IN_PROGRESS,
+            version=version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
 
     @classmethod
     def resolve_defect(
@@ -690,6 +747,7 @@ class WorkflowService:
         defect_id: str,
         request: DefectResolveRequest,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'Fixed'."""
         transition_req = DefectTransitionRequest(
@@ -697,8 +755,9 @@ class WorkflowService:
             root_cause=request.root_cause,
             resolution_notes=request.resolution_notes,
             fix_reference=request.fix_reference,
+            version=request.version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
 
     @classmethod
     def start_retest(
@@ -706,12 +765,15 @@ class WorkflowService:
         db: Session,
         defect_id: str,
         current_user: User,
+        if_match: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'Retest'."""
         transition_req = DefectTransitionRequest(
             target_status=DefectStatus.RETEST,
+            version=version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
 
     @classmethod
     def close_defect(
@@ -720,13 +782,15 @@ class WorkflowService:
         defect_id: str,
         request: DefectCloseRequest,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'Closed'."""
         transition_req = DefectTransitionRequest(
             target_status=DefectStatus.CLOSED,
             verification_notes=request.verification_notes,
+            version=request.version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
 
     @classmethod
     def reopen_defect(
@@ -735,10 +799,12 @@ class WorkflowService:
         defect_id: str,
         request: DefectReopenRequest,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Convenience method to transition a defect to 'Reopened'."""
         transition_req = DefectTransitionRequest(
             target_status=DefectStatus.REOPENED,
             reopen_reason=request.reopen_reason,
+            version=request.version,
         )
-        return cls.transition_defect(db, defect_id, transition_req, current_user)
+        return cls.transition_defect(db, defect_id, transition_req, current_user, if_match=if_match)
