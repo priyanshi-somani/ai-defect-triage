@@ -6,15 +6,48 @@ from typing import Optional, List, Tuple
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import or_, func, case
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from backend.models.defect import Defect
 from backend.models.history import DefectHistory
 from backend.models.user import User
 from backend.models.enums import UserRole, DefectStatus, DefectSeverity, DefectPriority, AuditActionType
-from backend.schemas.defect import DefectCreate, DefectUpdate, DefectTriageRequest
+from backend.schemas.defect import DefectCreate, DefectUpdate, DefectTriageRequest, DefectResponse
 from backend.services.evidence_validation_service import EvidenceValidationService
 
 logger = logging.getLogger("defect.service")
+
+
+class ConcurrencyConflictError(HTTPException):
+    """Exception raised when an optimistic concurrency collision or stale update is detected.
+
+    Requirements Addressed:
+        FR-058: Compare submitted version token against stored database version.
+        FR-059: Reject mutation with HTTP 409 Conflict if submitted version is stale.
+        FR-060: Return latest server-side representation on 409 Conflict.
+        RISK-V1-004: Mitigation of silent data overwrites under concurrent race conditions.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        current_version: int,
+        submitted_version: Optional[int],
+        latest_defect: dict,
+    ):
+        self.message = message
+        self.current_version = current_version
+        self.submitted_version = submitted_version
+        self.latest_defect = latest_defect
+        super().__init__(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail={
+                "message": message,
+                "current_version": current_version,
+                "submitted_version": submitted_version,
+                "latest_defect": latest_defect,
+            },
+        )
 
 STATUS_MAP = {
     "open": DefectStatus.OPEN.value,
@@ -145,6 +178,7 @@ class DefectService:
         defect_id: str,
         request: DefectUpdate,
         current_user: User,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Update an existing defect report with author governance and status checks.
         
@@ -152,12 +186,41 @@ class DefectService:
             FR-006: Author can update Title, Description, Steps, Expected, Actual, Environment while in 'Open' status.
             FR-007: Non-author update attempt rejected with HTTP 403 Forbidden.
             FR-008: Author update attempt past 'Open' status rejected with HTTP 403 Forbidden.
+            FR-056–FR-060: Optimistic concurrency control, version validation, and stale update rejection.
         """
         defect = db.query(Defect).filter(Defect.id == defect_id).first()
         if not defect:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Defect '{defect_id}' not found.",
+            )
+
+        # Concurrency version validation (FR-056 through FR-060)
+        submitted_version = None
+        if request.version is not None:
+            submitted_version = request.version
+        elif if_match is not None:
+            clean = if_match.strip().strip('"').strip("'")
+            if clean.startswith("W/"):
+                clean = clean[2:].strip('"')
+            try:
+                submitted_version = int(clean)
+            except ValueError:
+                pass
+
+        if submitted_version is not None and submitted_version != defect.version:
+            latest_data = DefectResponse.model_validate(defect).model_dump(mode="json")
+            logger.warning(
+                "CONCURRENCY_CONFLICT: Stale update rejected on defect '%s'. DB version=%d, submitted version=%d",
+                defect.id,
+                defect.version,
+                submitted_version,
+            )
+            raise ConcurrencyConflictError(
+                message=f"Defect '{defect.id}' was modified by another transaction. Database is at version {defect.version}, but version {submitted_version} was submitted.",
+                current_version=defect.version,
+                submitted_version=submitted_version,
+                latest_defect=latest_data,
             )
 
         # Authorization check per RBAC policy (roles-permissions.md):
@@ -224,20 +287,39 @@ class DefectService:
                     setattr(defect, field, new_val_str)
 
         if deltas:
-            db.flush()  # Increments defect.version via version_id_col
-            for field, old_v, new_v in deltas:
-                history = DefectHistory(
-                    defect_id=defect.id,
-                    changed_by_user_id=current_user.id,
-                    action_type=AuditActionType.UPDATED.value,
-                    field_name=field,
-                    old_value=old_v,
-                    new_value=new_v,
-                    version_snapshot=defect.version,
+            try:
+                db.flush()  # Increments defect.version via version_id_col
+                for field, old_v, new_v in deltas:
+                    history = DefectHistory(
+                        defect_id=defect.id,
+                        changed_by_user_id=current_user.id,
+                        action_type=AuditActionType.UPDATED.value,
+                        field_name=field,
+                        old_value=old_v,
+                        new_value=new_v,
+                        version_snapshot=defect.version,
+                    )
+                    db.add(history)
+                db.commit()
+                db.refresh(defect)
+            except StaleDataError:
+                db.rollback()
+                latest = db.query(Defect).filter(Defect.id == defect_id).first()
+                latest_data = (
+                    DefectResponse.model_validate(latest).model_dump(mode="json")
+                    if latest
+                    else {}
                 )
-                db.add(history)
-            db.commit()
-            db.refresh(defect)
+                logger.warning(
+                    "CONCURRENCY_COLLISION: StaleDataError caught on update to defect '%s'",
+                    defect_id,
+                )
+                raise ConcurrencyConflictError(
+                    message=f"Defect '{defect_id}' was concurrently modified by another transaction. Stale update rejected.",
+                    current_version=latest.version if latest else 0,
+                    submitted_version=submitted_version,
+                    latest_defect=latest_data,
+                )
             logger.info(
                 "DEFECT_UPDATED: Defect '%s' updated by user '%s' (version=%d, changes=%d)",
                 defect.id,
@@ -254,11 +336,35 @@ class DefectService:
         return db.query(Defect).filter(Defect.id == defect_id).first()
 
     @staticmethod
+    def get_defect_history(db: Session, defect_id: str) -> List[DefectHistory]:
+        """Retrieve complete chronological audit log entries for a given defect.
+
+        Requirements Addressed:
+            FR-049: Audit trail tracking status transitions, assignments, and updates.
+            FR-050: Itemized audit record attributes.
+            FR-051: Chronological history retrieval for authenticated users.
+        """
+        defect = db.query(Defect).filter(Defect.id == defect_id).first()
+        if not defect:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"Defect '{defect_id}' not found.",
+            )
+
+        return (
+            db.query(DefectHistory)
+            .filter(DefectHistory.defect_id == defect_id)
+            .order_by(DefectHistory.timestamp.asc(), DefectHistory.id.asc())
+            .all()
+        )
+
+    @staticmethod
     def triage_defect(
         db: Session,
         defect_id: str,
         current_user: User,
         request: Optional[DefectTriageRequest] = None,
+        if_match: Optional[str] = None,
     ) -> Defect:
         """Evaluate defect evidence and transition status from Open to Triaged.
 
@@ -270,12 +376,41 @@ class DefectService:
             FR-015: Reject with HTTP 422 itemized error array on failure.
             FR-016: Defect retained in Open status until resolved.
             FR-032: Permitted only for ROLE_QA_TRIAGE or ROLE_ADMIN.
+            FR-056–FR-060: Optimistic concurrency control, version validation, and stale update rejection.
         """
         defect = db.query(Defect).filter(Defect.id == defect_id).first()
         if not defect:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Defect '{defect_id}' not found.",
+            )
+
+        # Concurrency version validation (FR-056 through FR-060)
+        submitted_version = None
+        if request and request.version is not None:
+            submitted_version = request.version
+        elif if_match is not None:
+            clean = if_match.strip().strip('"').strip("'")
+            if clean.startswith("W/"):
+                clean = clean[2:].strip('"')
+            try:
+                submitted_version = int(clean)
+            except ValueError:
+                pass
+
+        if submitted_version is not None and submitted_version != defect.version:
+            latest_data = DefectResponse.model_validate(defect).model_dump(mode="json")
+            logger.warning(
+                "CONCURRENCY_CONFLICT: Stale triage transition rejected on defect '%s'. DB version=%d, submitted version=%d",
+                defect.id,
+                defect.version,
+                submitted_version,
+            )
+            raise ConcurrencyConflictError(
+                message=f"Defect '{defect.id}' was modified by another transaction. Database is at version {defect.version}, but version {submitted_version} was submitted.",
+                current_version=defect.version,
+                submitted_version=submitted_version,
+                latest_defect=latest_data,
             )
 
         if defect.status != DefectStatus.OPEN.value:
@@ -300,22 +435,41 @@ class DefectService:
                 deltas.append(("priority", defect.priority, request.priority.value))
                 defect.priority = request.priority.value
 
-        db.flush()  # Increments version via version_id_col
+        try:
+            db.flush()  # Increments version via version_id_col
 
-        for field, old_v, new_v in deltas:
-            history = DefectHistory(
-                defect_id=defect.id,
-                changed_by_user_id=current_user.id,
-                action_type=AuditActionType.STATUS_CHANGED.value if field == "status" else AuditActionType.UPDATED.value,
-                field_name=field,
-                old_value=old_v,
-                new_value=new_v,
-                version_snapshot=defect.version,
+            for field, old_v, new_v in deltas:
+                history = DefectHistory(
+                    defect_id=defect.id,
+                    changed_by_user_id=current_user.id,
+                    action_type=AuditActionType.STATUS_CHANGED.value if field == "status" else AuditActionType.UPDATED.value,
+                    field_name=field,
+                    old_value=old_v,
+                    new_value=new_v,
+                    version_snapshot=defect.version,
+                )
+                db.add(history)
+
+            db.commit()
+            db.refresh(defect)
+        except StaleDataError:
+            db.rollback()
+            latest = db.query(Defect).filter(Defect.id == defect_id).first()
+            latest_data = (
+                DefectResponse.model_validate(latest).model_dump(mode="json")
+                if latest
+                else {}
             )
-            db.add(history)
-
-        db.commit()
-        db.refresh(defect)
+            logger.warning(
+                "CONCURRENCY_COLLISION: StaleDataError caught on triage for defect '%s'",
+                defect_id,
+            )
+            raise ConcurrencyConflictError(
+                message=f"Defect '{defect_id}' was concurrently modified by another transaction. Stale triage rejected.",
+                current_version=latest.version if latest else 0,
+                submitted_version=submitted_version,
+                latest_defect=latest_data,
+            )
 
         logger.info(
             "DEFECT_TRIAGED: Defect '%s' successfully promoted to 'Triaged' by user '%s' (version=%d)",

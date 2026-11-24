@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -13,6 +13,7 @@ from backend.schemas.defect import (
     DefectCreate,
     DefectUpdate,
     DefectResponse,
+    DefectHistoryResponse,
     PaginatedDefectResponse,
     DefectTriageRequest,
     EvidenceValidationResponse,
@@ -21,6 +22,7 @@ from backend.schemas.defect import (
     DefectResolveRequest,
     DefectCloseRequest,
     DefectReopenRequest,
+    DefectConflictResponse,
 )
 from backend.services.defect_service import DefectService
 from backend.services.evidence_validation_service import EvidenceValidationService
@@ -153,15 +155,44 @@ def get_defect(
     return defect
 
 
+@router.get(
+    "/{defect_id}/history",
+    response_model=List[DefectHistoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve chronological audit history for a defect",
+)
+def get_defect_history(
+    defect_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve chronological audit trail of all mutations to the specified defect.
+
+    Requirements Addressed:
+        FR-049: Audit log tracking status transitions, assignments, and field edits.
+        FR-050: Itemized audit log entry attributes.
+        FR-051: Chronological history access open to all authenticated roles.
+        OP_VIEW_AUDIT_LOG: Permitted for Reporter, Developer, QA/Triage, and Admin.
+    """
+    return DefectService.get_defect_history(db=db, defect_id=defect_id)
+
+
 @router.put(
     "/{defect_id}",
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Update defect details",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def update_defect(
     defect_id: str,
     request: DefectUpdate,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -171,12 +202,14 @@ def update_defect(
         FR-006: Author can update Title, Description, Steps, Expected, Actual, Environment while in 'Open' status.
         FR-007: Non-author update attempt rejected with HTTP 403 Forbidden.
         FR-008: Author update attempt past 'Open' status rejected with HTTP 403 Forbidden.
+        FR-056–FR-060: Optimistic concurrency control and stale update rejection.
     """
     return DefectService.update_defect(
         db=db,
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -185,10 +218,17 @@ def update_defect(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Triage defect through deterministic evidence quality gate",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def triage_defect(
     defect_id: str,
     request: Optional[DefectTriageRequest] = None,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
@@ -202,12 +242,14 @@ def triage_defect(
         FR-015: Reject transitions with HTTP 422 itemized error array.
         FR-016: Retain defect in Open status on failure.
         FR-032: Permitted only for ROLE_QA_TRIAGE or ROLE_ADMIN.
+        FR-056–FR-060: Optimistic concurrency control and stale update rejection.
     """
     return DefectService.triage_defect(
         db=db,
         defect_id=defect_id,
         current_user=current_user,
         request=request,
+        if_match=if_match,
     )
 
 
@@ -250,10 +292,17 @@ def inspect_defect_evidence(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Execute finite-state machine lifecycle transition",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def transition_defect(
     defect_id: str,
     request: DefectTransitionRequest,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -270,12 +319,14 @@ def transition_defect(
         FR-028: Permit Closed -> Reopened with regression notes (HTTP 422).
         FR-029: Permit Assigned -> Triaged (unassigned).
         FR-030: Reject illegal transitions (HTTP 400).
+        FR-056–FR-060: Optimistic concurrency control and stale update rejection.
     """
     return WorkflowService.transition_defect(
         db=db,
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -284,10 +335,17 @@ def transition_defect(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Assign defect to developer",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def assign_defect(
     defect_id: str,
     request: DefectAssignRequest,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
@@ -297,6 +355,7 @@ def assign_defect(
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -305,9 +364,16 @@ def assign_defect(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Commence active investigation/remediation",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def start_progress(
     defect_id: str,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.ADMIN])),
 ):
@@ -316,6 +382,7 @@ def start_progress(
         db=db,
         defect_id=defect_id,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -324,10 +391,17 @@ def start_progress(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Resolve defect and mark Fixed",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def resolve_defect(
     defect_id: str,
     request: DefectResolveRequest,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.ADMIN])),
 ):
@@ -337,6 +411,7 @@ def resolve_defect(
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -345,9 +420,16 @@ def resolve_defect(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Begin QA retest verification",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def start_retest(
     defect_id: str,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
@@ -356,6 +438,7 @@ def start_retest(
         db=db,
         defect_id=defect_id,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -364,10 +447,17 @@ def start_retest(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Close verified defect",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def close_defect(
     defect_id: str,
     request: DefectCloseRequest,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
@@ -377,6 +467,7 @@ def close_defect(
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 
@@ -385,10 +476,17 @@ def close_defect(
     response_model=DefectResponse,
     status_code=status.HTTP_200_OK,
     summary="Reopen defect after retest failure or regression",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": DefectConflictResponse,
+            "description": "Optimistic concurrency collision or stale update detected (FR-059, FR-060)",
+        }
+    },
 )
 def reopen_defect(
     defect_id: str,
     request: DefectReopenRequest,
+    if_match: Optional[str] = Header(default=None, alias="If-Match"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
@@ -398,6 +496,7 @@ def reopen_defect(
         defect_id=defect_id,
         request=request,
         current_user=current_user,
+        if_match=if_match,
     )
 
 

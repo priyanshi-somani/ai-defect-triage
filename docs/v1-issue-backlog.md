@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/v1-issue-backlog.md`  
-**Version:** 1.5 (Synchronized through Issue #17 / PR #29)  
+**Version:** 1.7 (Synchronized through Issue #19 / PR #31)  
 
 ---
 
@@ -30,8 +30,8 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | **Completed (PR #27)** |
 | **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | **Completed (PR #28)** |
 | **#17** | Implement Defect Search, Filtering, Sorting and Pagination | `feature/17-search-and-filtering` | **Completed (PR #29)** |
-| **#18** | Implement Immutable Defect History and Audit Traceability | `feature/18-defect-history` | Planned |
-| **#19** | Implement Optimistic Concurrency and Stale Update Protection | `feature/19-concurrency-protection` | Planned |
+| **#18** | Implement Immutable Defect History and Audit Traceability | `feature/18-defect-history` | **Completed (PR #30)** |
+| **#19** | Implement Optimistic Concurrency and Stale Update Protection | `feature/19-concurrency-protection` | **Completed (PR #31)** |
 | **#20** | Execute Complete Version 1 System Testing and Baseline Verification | `test/20-v1-system-testing` | Planned |
 
 ---
@@ -177,7 +177,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #18: Implement Immutable Defect History and Audit Traceability
 - **Branch:** `feature/18-defect-history`
-- **Status:** Planned
+- **Status:** **Completed (PR #30)** (Implemented and verified; PR #30 opened targeting `main`)
 - **Purpose:** Implement automatic audit logging of all state transitions, field mutations, and assignments to `DefectHistory`. Expose `GET /api/v1/defects/{id}/history`.
 - **Requirements Addressed:** `FR-049`, `FR-050`, `FR-051`, `FR-052`
 - **Risk Mitigated:** `RISK-V1-005`
@@ -185,14 +185,14 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   1. Every mutation automatically inserts an audit entry with user ID, timestamp, old value, and new value.
   2. Audit log endpoint returns chronological sequence.
   3. Audit records cannot be modified or deleted via API.
-- **Expected Tests:** `TC-HIST-001` through `TC-HIST-005`
+- **Executed Tests:** `TC-HIST-001` through `TC-HIST-005` (`tests/test_defect_history.py`, 8 tests)
 - **Dependencies:** Issue #15, #16
 
 ---
 
 ### Issue #19: Implement Optimistic Concurrency and Stale Update Protection
 - **Branch:** `feature/19-concurrency-protection`
-- **Status:** Planned
+- **Status:** **Completed (PR #31)** (Implemented and verified; PR #31 opened targeting `main`)
 - **Purpose:** Integrate optimistic locking via SQLAlchemy `version_id_col` and reject concurrent stale mutations with HTTP `409 Conflict`.
 - **Requirements Addressed:** `FR-056` through `FR-060`
 - **Risk Mitigated:** `RISK-V1-004`
@@ -200,7 +200,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   1. Every update or status change verifies submitted `version` token matches database version.
   2. If version is stale, transaction aborts and returns HTTP `409 Conflict` containing the latest defect snapshot.
   3. Simulated race conditions guarantee 0% silent data overwrites.
-- **Expected Tests:** `TC-CONC-001` through `TC-CONC-004`
+- **Executed Tests:** `TC-CONC-001` through `TC-CONC-008` (`tests/test_defect_concurrency.py`, 8 tests)
 - **Dependencies:** Issue #13, #15, #18
 
 ---

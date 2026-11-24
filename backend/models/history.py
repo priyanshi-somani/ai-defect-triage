@@ -1,7 +1,7 @@
 """DefectHistory SQLAlchemy ORM entity."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, event
 from sqlalchemy.orm import relationship
 from backend.database import Base
 
@@ -29,3 +29,9 @@ class DefectHistory(Base):
             f"action='{self.action_type}' field='{self.field_name}' "
             f"version={self.version_snapshot}>"
         )
+
+
+@event.listens_for(DefectHistory, "before_update")
+def prevent_history_update(mapper, connection, target):
+    """Enforce strict immutability: DefectHistory records cannot be modified."""
+    raise ValueError("DefectHistory records are strictly immutable and cannot be updated.")
