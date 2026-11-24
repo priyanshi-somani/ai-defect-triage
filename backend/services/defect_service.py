@@ -1,8 +1,10 @@
 """Defect domain service layer handling defect creation, persistence, updating, and audit logging."""
 
 import logging
-from typing import Optional
-from fastapi import HTTPException, status
+from datetime import datetime
+from typing import Optional, List, Tuple
+from fastapi import HTTPException, status as http_status
+from sqlalchemy import or_, func, case
 from sqlalchemy.orm import Session
 
 from backend.models.defect import Defect
@@ -13,6 +15,39 @@ from backend.schemas.defect import DefectCreate, DefectUpdate, DefectTriageReque
 from backend.services.evidence_validation_service import EvidenceValidationService
 
 logger = logging.getLogger("defect.service")
+
+STATUS_MAP = {
+    "open": DefectStatus.OPEN.value,
+    "triaged": DefectStatus.TRIAGED.value,
+    "assigned": DefectStatus.ASSIGNED.value,
+    "in progress": DefectStatus.IN_PROGRESS.value,
+    "in_progress": DefectStatus.IN_PROGRESS.value,
+    "fixed": DefectStatus.FIXED.value,
+    "retest": DefectStatus.RETEST.value,
+    "closed": DefectStatus.CLOSED.value,
+    "reopened": DefectStatus.REOPENED.value,
+}
+
+SEVERITY_MAP = {
+    "blocker": DefectSeverity.BLOCKER.value,
+    "critical": DefectSeverity.CRITICAL.value,
+    "major": DefectSeverity.MAJOR.value,
+    "minor": DefectSeverity.MINOR.value,
+    "trivial": DefectSeverity.TRIVIAL.value,
+}
+
+PRIORITY_MAP = {
+    "p1": DefectPriority.P1.value,
+    "p1-immediate": DefectPriority.P1.value,
+    "p2": DefectPriority.P2.value,
+    "p2-high": DefectPriority.P2.value,
+    "p3": DefectPriority.P3.value,
+    "p3-medium": DefectPriority.P3.value,
+    "p4": DefectPriority.P4.value,
+    "p4-low": DefectPriority.P4.value,
+}
+
+SUPPORTED_SORT_FIELDS = {"created_at", "updated_at", "severity", "priority", "id"}
 
 
 class DefectService:
@@ -121,7 +156,7 @@ class DefectService:
         defect = db.query(Defect).filter(Defect.id == defect_id).first()
         if not defect:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Defect '{defect_id}' not found.",
             )
 
@@ -137,7 +172,7 @@ class DefectService:
                     defect.reporter_id,
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=http_status.HTTP_403_FORBIDDEN,
                     detail="Cannot update a defect reported by another user.",
                 )
 
@@ -149,19 +184,19 @@ class DefectService:
                     defect.status,
                 )
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=http_status.HTTP_403_FORBIDDEN,
                     detail=f"Cannot update defect while in '{defect.status}' status. Updates only permitted in 'Open' status.",
                 )
 
             # Restrict severity / priority alteration to QA_TRIAGE and ADMIN roles
             if request.severity is not None and request.severity.value != defect.severity:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=http_status.HTTP_403_FORBIDDEN,
                     detail="Only QA/Triage or Admin roles may change defect severity.",
                 )
             if request.priority is not None and request.priority.value != defect.priority:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=http_status.HTTP_403_FORBIDDEN,
                     detail="Only QA/Triage or Admin roles may change defect priority.",
                 )
 
@@ -239,13 +274,13 @@ class DefectService:
         defect = db.query(Defect).filter(Defect.id == defect_id).first()
         if not defect:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Defect '{defect_id}' not found.",
             )
 
         if defect.status != DefectStatus.OPEN.value:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot triage defect currently in '{defect.status}' status. Only defects in 'Open' status can be triaged.",
             )
 
@@ -289,4 +324,167 @@ class DefectService:
             defect.version,
         )
         return defect
+
+    @staticmethod
+    def search_defects(
+        db: Session,
+        defect_id: Optional[str] = None,
+        q: Optional[str] = None,
+        status_filter: Optional[str] = None,
+        severity: Optional[str] = None,
+        priority: Optional[str] = None,
+        module: Optional[str] = None,
+        assignee_id: Optional[int] = None,
+        reporter_id: Optional[int] = None,
+        created_after: Optional[datetime] = None,
+        created_before: Optional[datetime] = None,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: Optional[str] = "created_at",
+        sort_order: Optional[str] = "desc",
+        sort: Optional[str] = None,
+    ) -> Tuple[List[Defect], int, int]:
+        """Query, filter, sort, and paginate defects deterministically.
+
+        Requirements Addressed:
+            FR-041: Search by exact Defect ID and case-insensitive substring match on Title and Description.
+            FR-042: Compound multi-attribute filtering by Status, Severity, Priority, Module, Assignee, Reporter, and Creation Date Range.
+            FR-043: Paginate results with default page size 20, max 100.
+            FR-044: Sorting by created_at, updated_at, severity, priority in ascending or descending order.
+        """
+        query = db.query(Defect)
+
+        # FR-041: Search by exact Defect ID
+        if defect_id and defect_id.strip():
+            query = query.filter(Defect.id == defect_id.strip())
+
+        # FR-041: Case-insensitive substring match on Title and Description
+        if q and q.strip():
+            term = f"%{q.strip()}%"
+            query = query.filter(
+                or_(
+                    Defect.id.ilike(term),
+                    Defect.title.ilike(term),
+                    Defect.description.ilike(term),
+                )
+            )
+
+        # FR-042: Multi-attribute compound filtering
+        if status_filter and status_filter.strip():
+            status_val = STATUS_MAP.get(status_filter.strip().lower(), status_filter.strip())
+            query = query.filter(Defect.status == status_val)
+
+        if severity and severity.strip():
+            severity_val = SEVERITY_MAP.get(severity.strip().lower(), severity.strip())
+            query = query.filter(Defect.severity == severity_val)
+
+        if priority and priority.strip():
+            priority_val = PRIORITY_MAP.get(priority.strip().lower(), priority.strip())
+            query = query.filter(Defect.priority == priority_val)
+
+        if module and module.strip():
+            query = query.filter(func.lower(Defect.module) == module.strip().lower())
+
+        if assignee_id is not None:
+            query = query.filter(Defect.assignee_id == assignee_id)
+
+        if reporter_id is not None:
+            query = query.filter(Defect.reporter_id == reporter_id)
+
+        if created_after is not None:
+            if created_after.tzinfo is not None:
+                created_after = created_after.replace(tzinfo=None)
+            query = query.filter(Defect.created_at >= created_after)
+
+        if created_before is not None:
+            if created_before.tzinfo is not None:
+                created_before = created_before.replace(tzinfo=None)
+            query = query.filter(Defect.created_at <= created_before)
+
+        # Compute total before pagination
+        total = query.count()
+
+        # FR-044: Sorting
+        sort_clauses = []
+        if sort and sort.strip():
+            raw_clauses = [c.strip() for c in sort.split(",") if c.strip()]
+            for raw_c in raw_clauses:
+                if ":" in raw_c:
+                    parts = raw_c.split(":", 1)
+                else:
+                    parts = raw_c.split()
+                f_name = parts[0].strip().lower()
+                f_order = parts[1].strip().lower() if len(parts) > 1 else "asc"
+                if f_name not in SUPPORTED_SORT_FIELDS:
+                    raise HTTPException(
+                        status_code=http_status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid sort field '{f_name}'. Supported fields: created_at, updated_at, severity, priority.",
+                    )
+                if f_order not in {"asc", "desc"}:
+                    raise HTTPException(
+                        status_code=http_status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid sort order '{f_order}'. Supported orders: asc, desc.",
+                    )
+                sort_clauses.append((f_name, f_order))
+        else:
+            f_name = (sort_by or "created_at").strip().lower()
+            f_order = (sort_order or "desc").strip().lower()
+            if f_name not in SUPPORTED_SORT_FIELDS:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid sort field '{f_name}'. Supported fields: created_at, updated_at, severity, priority.",
+                )
+            if f_order not in {"asc", "desc"}:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid sort order '{f_order}'. Supported orders: asc, desc.",
+                )
+            sort_clauses.append((f_name, f_order))
+
+        order_by_items = []
+        for f_name, f_order in sort_clauses:
+            if f_name == "created_at":
+                col = Defect.created_at
+            elif f_name == "updated_at":
+                col = Defect.updated_at
+            elif f_name == "severity":
+                col = case(
+                    {
+                        DefectSeverity.BLOCKER.value: 1,
+                        DefectSeverity.CRITICAL.value: 2,
+                        DefectSeverity.MAJOR.value: 3,
+                        DefectSeverity.MINOR.value: 4,
+                        DefectSeverity.TRIVIAL.value: 5,
+                    },
+                    value=Defect.severity,
+                    else_=6,
+                )
+            elif f_name == "priority":
+                col = case(
+                    {
+                        DefectPriority.P1.value: 1,
+                        DefectPriority.P2.value: 2,
+                        DefectPriority.P3.value: 3,
+                        DefectPriority.P4.value: 4,
+                    },
+                    value=Defect.priority,
+                    else_=5,
+                )
+            elif f_name == "id":
+                col = Defect.id
+
+            order_by_items.append(col.asc() if f_order == "asc" else col.desc())
+
+        # Deterministic secondary tie-breaker
+        order_by_items.append(Defect.id.desc())
+        query = query.order_by(*order_by_items)
+
+        # FR-043: Pagination boundaries
+        page = max(1, page)
+        page_size = max(1, min(100, page_size))
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        offset = (page - 1) * page_size
+
+        items = query.offset(offset).limit(page_size).all()
+        return items, total, total_pages
 
