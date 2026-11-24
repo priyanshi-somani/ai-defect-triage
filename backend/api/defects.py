@@ -214,9 +214,9 @@ def assign_defect(
     defect_id: str,
     request: DefectAssignRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
-    """Assign a defect to a designated developer."""
+    """Assign a defect to a designated developer (FR-033)."""
     return WorkflowService.assign_defect(
         db=db,
         defect_id=defect_id,
@@ -234,9 +234,9 @@ def assign_defect(
 def start_progress(
     defect_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.ADMIN])),
 ):
-    """Transition defect status to 'In Progress'."""
+    """Transition defect status to 'In Progress' (FR-034)."""
     return WorkflowService.start_progress(
         db=db,
         defect_id=defect_id,
@@ -254,9 +254,9 @@ def resolve_defect(
     defect_id: str,
     request: DefectResolveRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.DEVELOPER, UserRole.ADMIN])),
 ):
-    """Transition defect status to 'Fixed' with resolution details (FR-024)."""
+    """Transition defect status to 'Fixed' with resolution details (FR-024, FR-034)."""
     return WorkflowService.resolve_defect(
         db=db,
         defect_id=defect_id,
@@ -274,9 +274,9 @@ def resolve_defect(
 def start_retest(
     defect_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
-    """Transition defect status to 'Retest'."""
+    """Transition defect status to 'Retest' (FR-035)."""
     return WorkflowService.start_retest(
         db=db,
         defect_id=defect_id,
@@ -294,9 +294,9 @@ def close_defect(
     defect_id: str,
     request: DefectCloseRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
-    """Transition defect status to 'Closed' with verification notes (FR-026)."""
+    """Transition defect status to 'Closed' with verification notes (FR-026, FR-035, FR-036)."""
     return WorkflowService.close_defect(
         db=db,
         defect_id=defect_id,
@@ -315,9 +315,9 @@ def reopen_defect(
     defect_id: str,
     request: DefectReopenRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles([UserRole.QA_TRIAGE, UserRole.ADMIN])),
 ):
-    """Transition defect status to 'Reopened' with failure explanation (FR-027, FR-028)."""
+    """Transition defect status to 'Reopened' with failure explanation (FR-027, FR-028, FR-036)."""
     return WorkflowService.reopen_defect(
         db=db,
         defect_id=defect_id,

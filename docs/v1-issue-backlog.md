@@ -3,7 +3,7 @@
 **Course:** CISC 594 – Software Testing Principles & Techniques (Harrisburg University)  
 **Project Name:** AI-Assisted Bug Triage & Defect Management System  
 **Document Reference:** `docs/v1-issue-backlog.md`  
-**Version:** 1.3 (Synchronized through Issue #15 / PR #27)  
+**Version:** 1.4 (Synchronized through Issue #16 / PR #28)  
 
 ---
 
@@ -28,7 +28,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 | **#13** | Implement Defect Updating and Reporter Edit Governance | `feature/13-defect-update` | **Completed (PR #25)** |
 | **#14** | Implement Deterministic Defect Evidence Quality Validation | `feature/14-evidence-validation` | **Completed (PR #26)** |
 | **#15** | Implement Defect Lifecycle State Machine | `feature/15-defect-lifecycle-fsm` | **Completed (PR #27)** |
-| **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | Planned |
+| **#16** | Implement Assignment and Role-Based Authorization Enforcement | `feature/16-assignment-and-rbac` | **Completed (PR #28)** |
 | **#17** | Implement Defect Search, Filtering, Sorting and Pagination | `feature/17-search-and-filtering` | Planned |
 | **#18** | Implement Immutable Defect History and Audit Traceability | `feature/18-defect-history` | Planned |
 | **#19** | Implement Optimistic Concurrency and Stale Update Protection | `feature/19-concurrency-protection` | Planned |
@@ -147,7 +147,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
 
 ### Issue #16: Implement Assignment and Role-Based Authorization Enforcement
 - **Branch:** `feature/16-assignment-and-rbac`
-- **Status:** Planned
+- **Status:** **Completed (PR #28)** (Implemented and verified; PR #28 opened targeting `main`)
 - **Purpose:** Enforce role-based boundaries on triage, assignment, progress, retesting, and defect closure.
 - **Requirements Addressed:** `FR-032` through `FR-037`
 - **Risk Mitigated:** `RISK-V1-002`, `RISK-V1-006`
@@ -155,7 +155,7 @@ This document defines the 12 discrete, testable GitHub Issues that form the impl
   1. Only `ROLE_QA_TRIAGE` and `ROLE_ADMIN` can triage, change severity, change priority, close, or reopen.
   2. Developers can self-assign unassigned triaged defects, but cannot reassign others' defects.
   3. Strict Separation of Duties: Developer who marked defect `Fixed` cannot perform `Retest` or `Close` on that defect.
-- **Expected Tests:** `TC-AUTH-001` through `TC-AUTH-010`
+- **Executed Tests:** `TC-AUTH-001` through `TC-AUTH-010` (`test_defect_rbac.py`, 15 tests)
 - **Dependencies:** Issue #15
 
 ---
