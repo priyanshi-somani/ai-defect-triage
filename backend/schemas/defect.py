@@ -13,7 +13,7 @@ Addresses Requirements:
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from backend.models.enums import DefectStatus, DefectSeverity, DefectPriority
 
 
@@ -275,6 +275,49 @@ class DefectResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedDefectResponse(BaseModel):
+    """Paginated defect query response schema.
+
+    Requirements Addressed:
+        FR-041: Substring search & ID lookup results.
+        FR-042: Compound attribute filter results.
+        FR-043: Paginated payload with total, page, page_size, total_pages.
+        FR-044: Sorted defect collection.
+    """
+    items: List[DefectResponse] = Field(
+        ...,
+        description="Defect records in the current page slice",
+    )
+    total: int = Field(
+        ...,
+        description="Total number of matching defect records",
+    )
+    page: int = Field(
+        ...,
+        description="Current 1-based page number",
+    )
+    page_size: int = Field(
+        ...,
+        description="Requested number of items per page (default 20, max 100)",
+    )
+    total_pages: int = Field(
+        ...,
+        description="Total number of available pages",
+    )
+    defects: Optional[List[DefectResponse]] = Field(
+        default=None,
+        description="Alias for items collection",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def populate_defects(self) -> "PaginatedDefectResponse":
+        if self.defects is None:
+            self.defects = self.items
+        return self
 
 
 class DefectHistoryResponse(BaseModel):

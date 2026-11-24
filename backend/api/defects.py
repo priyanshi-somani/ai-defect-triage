@@ -1,7 +1,8 @@
 """Defect management API endpoints."""
 
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -12,6 +13,7 @@ from backend.schemas.defect import (
     DefectCreate,
     DefectUpdate,
     DefectResponse,
+    PaginatedDefectResponse,
     DefectTriageRequest,
     EvidenceValidationResponse,
     DefectTransitionRequest,
@@ -50,6 +52,79 @@ def create_defect(
         FR-010: Priority enum validation.
     """
     return DefectService.create_defect(db=db, request=request, current_user=current_user)
+
+
+@router.get(
+    "",
+    response_model=PaginatedDefectResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Search, filter, sort, and paginate defects",
+)
+def list_defects(
+    id: Optional[str] = Query(default=None, description="Exact Defect ID to filter by"),
+    defect_id: Optional[str] = Query(default=None, description="Exact Defect ID to filter by"),
+    q: Optional[str] = Query(default=None, description="Case-insensitive substring search in Title and Description"),
+    keyword: Optional[str] = Query(default=None, description="Alias for keyword substring search"),
+    search: Optional[str] = Query(default=None, description="Alias for keyword substring search"),
+    status: Optional[str] = Query(default=None, description="Filter by defect status"),
+    severity: Optional[str] = Query(default=None, description="Filter by defect severity"),
+    priority: Optional[str] = Query(default=None, description="Filter by defect priority"),
+    module: Optional[str] = Query(default=None, description="Filter by defect module"),
+    assignee_id: Optional[int] = Query(default=None, description="Filter by assignee user ID"),
+    reporter_id: Optional[int] = Query(default=None, description="Filter by reporter user ID"),
+    created_after: Optional[datetime] = Query(default=None, description="Filter defects created on or after date"),
+    created_before: Optional[datetime] = Query(default=None, description="Filter defects created on or before date"),
+    created_from: Optional[datetime] = Query(default=None, description="Alias for created_after"),
+    created_to: Optional[datetime] = Query(default=None, description="Alias for created_before"),
+    page: int = Query(default=1, ge=1, description="Page number (1-based index)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Page size (max 100)"),
+    sort_by: Optional[str] = Query(default="created_at", description="Field to sort by: created_at, updated_at, severity, priority"),
+    sort_order: Optional[str] = Query(default="desc", description="Sort order: asc, desc"),
+    sort: Optional[str] = Query(default=None, description="Sort expression: e.g. 'created_at DESC, severity ASC'"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve paginated, filtered, and sorted defect reports.
+
+    Requirements Addressed:
+        FR-041: Exact Defect ID search and case-insensitive Title/Description substring search.
+        FR-042: Compound multi-attribute filtering by Status, Severity, Priority, Module, Assignee, Reporter, and Creation Date Range.
+        FR-043: Paginated responses with default page size of 20 and customizable page size up to 100 records.
+        FR-044: Sorting by created_at, updated_at, severity, and priority in ascending or descending order.
+        OP_VIEW_DEFECT: Accessible by all authenticated roles (Reporter, Developer, QA/Triage, Admin).
+    """
+    target_id = id or defect_id
+    search_query = q or keyword or search
+    start_date = created_after or created_from
+    end_date = created_before or created_to
+
+    items, total, total_pages = DefectService.search_defects(
+        db=db,
+        defect_id=target_id,
+        q=search_query,
+        status_filter=status,
+        severity=severity,
+        priority=priority,
+        module=module,
+        assignee_id=assignee_id,
+        reporter_id=reporter_id,
+        created_after=start_date,
+        created_before=end_date,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        sort=sort,
+    )
+
+    return PaginatedDefectResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        defects=items,
+    )
 
 
 @router.get(
